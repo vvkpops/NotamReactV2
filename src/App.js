@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
 import { 
   AUTO_REFRESH_INTERVAL_MS,
   shouldShowDespiteFilters,
   getNotamType,
-  getNotamFlags
+  getNotamFlags,
+  isNotamCurrent,
+  isNotamFuture
 } from './utils/NotamUtils';
 
 // Import hooks
@@ -113,6 +115,22 @@ function App() {
     localStorage.setItem('notamIcaos', JSON.stringify(icaoSet));
   }, [icaoSet]);
 
+  // Debugging effect
+  useEffect(() => {
+    console.log("App mounted");
+    console.log("ICAO Set:", icaoSet);
+    console.log("Current Date and Time (UTC):", new Date().toISOString());
+  }, []);
+
+  // Monitor notamDataByIcao for debugging
+  useEffect(() => {
+    console.log("notamDataByIcao updated:", 
+      Object.keys(notamDataByIcao).length > 0 ? 
+        Object.keys(notamDataByIcao).map(k => `${k}: ${Array.isArray(notamDataByIcao[k]) ? notamDataByIcao[k].length : 0}`).join(', ') : 
+        "empty"
+    );
+  }, [notamDataByIcao]);
+
   // Auto-refresh logic with change detection
   useEffect(() => {
     const updateTimer = () => {
@@ -176,6 +194,8 @@ function App() {
   const performAutoRefresh = async () => {
     if (!activeSession || !icaoSet.length) return;
     
+    console.log("Performing auto-refresh for", icaoSet);
+    
     // Store previous NOTAMs for change detection
     const previousByIcao = {};
     for (const icao of icaoSet) {
@@ -186,6 +206,7 @@ function App() {
     for (const icao of icaoSet) {
       try {
         const result = await fetchNotamsForIcaoWithTracking(icao, true, false);
+        console.log("Auto-refresh result for", icao, result);
         if (result && result.newCount && result.newCount > 0) {
           showNewNotamAlert(result.alertText, icao, result.latestNewNotamKey);
         }
@@ -207,6 +228,7 @@ function App() {
       .filter(s => s.length === 4 && /^[A-Z]{4}$/.test(s));
 
     if (icaos.length > 0) {
+      console.log("Adding ICAOs:", icaos);
       setIcaoSet(prev => [...new Set([...prev, ...icaos])]);
       
       // Add to queue for batching
@@ -298,6 +320,8 @@ function App() {
 
   const handleReloadAll = async () => {
     if (!icaoSet.length) return;
+    
+    console.log("Reloading all NOTAMs");
     
     // Clear all timers
     Object.values(notamTimers).forEach(timer => {
@@ -469,7 +493,7 @@ function App() {
   };
 
   // Filter and display logic
-  const getFilteredNotams = () => {
+  const getFilteredNotams = useCallback(() => {
     let allNotams = [];
     
     if (tabMode === "ALL") {
@@ -633,9 +657,14 @@ function App() {
       
       return filtered;
     }
-  };
+  }, [tabMode, notamDataByIcao, filters, keywordFilter, newNotams, isNewNotam, notamExpirationTimes]);
 
   const filteredNotams = getFilteredNotams();
+
+  // Add debug logging before rendering
+  useEffect(() => {
+    console.log("Filtered NOTAMs:", filteredNotams.length);
+  }, [filteredNotams]);
 
   // Progress calculation
   const totalIcaos = icaoSet.length;
