@@ -26,7 +26,7 @@ export const shouldShowDespiteFilters = (notam, newNotams) => {
 export const getNotamType = (notam) => {
   if (!notam) return 'other';
   
-  const text = (notam.summary + ' ' + (notam.body || '')).toLowerCase();
+  const text = ((notam.summary || '') + ' ' + (notam.body || '')).toLowerCase();
   
   if (/\brwy\b|runway|rw[y]?\s*\d+|^\w+\s+\d+\s+closed/i.test(text)) return 'rwy';
   if (/\btwy\b|taxiway|taxilane/i.test(text)) return 'twy';
@@ -115,7 +115,7 @@ export const getClassificationTitle = (classification) => {
 export const getNotamFlags = (notam) => {
   if (!notam) return {};
   
-  const text = (notam.summary + ' ' + (notam.body || '')).toLowerCase();
+  const text = ((notam.summary || '') + ' ' + (notam.body || '')).toLowerCase();
   
   return {
     isRunwayClosure: /\brwy\b|runway|rw[y]?\s*\d+|^\w+\s+\d+\s+closed/i.test(text),
