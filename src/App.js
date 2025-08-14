@@ -520,7 +520,7 @@ function App() {
           }
           
           const flags = getNotamFlags(notam);
-          const text = (notam.summary + ' ' + (notam.body || '')).toLowerCase();
+          const text = ((notam.summary || '') + ' ' + (notam.body || '')).toLowerCase();
           
           // Keyword filter
           if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) {
@@ -537,10 +537,11 @@ function App() {
           if (flags.isCancelled && !filters.cancelled) return false;
           if (flags.isDom && !filters.dom) return false;
           
-          // Other type
-          if (!flags.isRunwayClosure && !flags.isTaxiwayClosure && !flags.isRSC && 
-              !flags.isCRFI && !flags.isILS && !flags.isFuel && !flags.isCancelled && 
-              !flags.isDom && !filters.other) return false;
+          // Other type - FIXED LOGIC
+          const isOtherType = !flags.isRunwayClosure && !flags.isTaxiwayClosure && 
+                             !flags.isRSC && !flags.isCRFI && !flags.isILS && 
+                             !flags.isFuel && !flags.isCancelled && !flags.isDom;
+          if (isOtherType && !filters.other) return false;
           
           // Time filters
           const isCurrent = isNotamCurrent(notam);
@@ -597,7 +598,7 @@ function App() {
         }
         
         const flags = getNotamFlags(notam);
-        const text = (notam.summary + ' ' + (notam.body || '')).toLowerCase();
+        const text = ((notam.summary || '') + ' ' + (notam.body || '')).toLowerCase();
         
         // Keyword filter
         if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) {
@@ -614,10 +615,11 @@ function App() {
         if (flags.isCancelled && !filters.cancelled) return false;
         if (flags.isDom && !filters.dom) return false;
         
-        // Other type
-        if (!flags.isRunwayClosure && !flags.isTaxiwayClosure && !flags.isRSC && 
-            !flags.isCRFI && !flags.isILS && !flags.isFuel && !flags.isCancelled && 
-            !flags.isDom && !filters.other) return false;
+        // Other type - FIXED LOGIC
+        const isOtherType = !flags.isRunwayClosure && !flags.isTaxiwayClosure && 
+                           !flags.isRSC && !flags.isCRFI && !flags.isILS && 
+                           !flags.isFuel && !flags.isCancelled && !flags.isDom;
+        if (isOtherType && !filters.other) return false;
         
         // Time filters
         const isCurrent = isNotamCurrent(notam);
@@ -653,6 +655,13 @@ function App() {
         const aIndex = types.indexOf(aType);
         const bIndex = types.indexOf(bType);
         return aIndex - bIndex;
+      });
+      
+      // Add debugging
+      console.log("Filtering stats:", {
+        totalNotams: allNotams.length,
+        filteredCount: filtered.length,
+        activeFilters: Object.entries(filters).filter(([k,v]) => v).map(([k]) => k)
       });
       
       return filtered;
