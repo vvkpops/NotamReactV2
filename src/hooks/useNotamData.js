@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchNotamsForIcao } from '../services/api';
 import {
   setupNotamTimers,
-  trackNewNotams
+  trackNewNotams,
+  isNotamCurrent,
+  isNotamFuture
 } from '../utils/NotamUtils';
 
 export const useNotamData = (icaoSet, activeSession, tabMode) => {
@@ -21,8 +23,8 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
   const [pendingNewNotams, setPendingNewNotams] = useState({});
 
   // Function to fetch NOTAMs for a specific ICAO
-  const fetchNotamsForIcaoWithTracking = async (icao, showAlertIfNew = true, isBatch = false) => {
-    if (!activeSession) return;
+  const fetchNotamsForIcaoWithTracking = useCallback(async (icao, showAlertIfNew = true, isBatch = false) => {
+    if (!activeSession) return { error: true };
     
     if (!isBatch) {
       setLoadingIcaosSet(prev => new Set([...prev, icao]));
@@ -32,6 +34,12 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
       const data = await fetchNotamsForIcao(icao);
       
       if (data.error) {
+        console.error(`Error fetching NOTAM for ${icao}:`, data.error);
+        return { error: true };
+      }
+      
+      if (!Array.isArray(data)) {
+        console.error(`Invalid data format for ${icao}:`, data);
         return { error: true };
       }
       
@@ -44,7 +52,7 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
         let newCount = 0;
         for (const n of data) {
           const key = n.id || n.number || n.qLine || n.summary;
-          if (!prevSet.has(key)) {
+          if (key && !prevSet.has(key)) {
             newCount++;
             newNotamKeys.add(key);
           }
@@ -99,10 +107,10 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
         });
       }
     }
-  };
+  }, [activeSession, lastNotamIdsByIcao, notamExpirationTimes, notamTimers, tabMode]);
 
   // Function to mark a NOTAM as viewed
-  const markNotamAsViewed = (notam) => {
+  const markNotamAsViewed = useCallback((notam) => {
     if (!isNewNotam(notam)) return;
     
     const key = notam.id || notam.number || notam.qLine || notam.summary;
@@ -160,13 +168,14 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
     });
     
     return key;
-  };
+  }, [notamTimers]);
 
   // Function to check if NOTAM is new
-  const isNewNotam = (notam) => {
+  const isNewNotam = useCallback((notam) => {
+    if (!notam || !notam.icao) return false;
     const key = notam.id || notam.number || notam.qLine || notam.summary;
     return newNotams[notam.icao] && newNotams[notam.icao].has(key);
-  };
+  }, [newNotams]);
 
   // Effect to start timers for pending NOTAMs when tab changes
   useEffect(() => {
@@ -185,7 +194,7 @@ export const useNotamData = (icaoSet, activeSession, tabMode) => {
         setPendingNewNotams
       );
     }
-  }, [tabMode, pendingNewNotams]);
+  }, [tabMode, pendingNewNotams, notamExpirationTimes, notamTimers]);
 
   // Clean up function for timers
   const cleanupNotamTimers = useCallback(() => {
