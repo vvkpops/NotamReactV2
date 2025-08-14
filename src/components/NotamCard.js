@@ -43,22 +43,21 @@ const NotamCard = ({
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
   const key = (notam.id || notam.number || notam.qLine || notam.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
-  const runways = type === "rwy" ? extractRunways(notam.summary + " " + notam.body) : "";
+  const runways = type === "rwy" ? extractRunways(notam.summary + " " + (notam.body || "")) : "";
   const expanded = expandedCardKey === key;
   const needsToExpand = needsExpansion(notam.summary);
-  const isNew = isNewNotam(notam);
+  const remainingTime = isNewNotam ? getNotamRemainingTime(notam, notamExpirationTimes) : 0;
   const timeStatus = isNotamCurrent(notam) ? "Current" : isNotamFuture(notam) ? "Future" : "";
-  const remainingTime = isNew ? getNotamRemainingTime(notam, notamExpirationTimes) : 0;
 
   return (
     <div
       key={key}
-      className={`glass notam-card notam-animate ${type} ${expanded ? 'expanded-card' : ''} ${!needsToExpand ? 'auto-sized' : ''} ${isNew ? 'new-notam-highlight' : ''}`}
+      className={`glass notam-card notam-animate ${type} ${expanded ? 'expanded-card' : ''} ${!needsToExpand ? 'auto-sized' : ''} ${isNewNotam ? 'new-notam-highlight' : ''}`}
       id={`notam-${key}`}
       onClick={() => {
         if (needsToExpand) {
           handleCardClick(key, notam);
-        } else if (isNew) {
+        } else if (isNewNotam) {
           // Even if not expanding, still mark as viewed when clicked
           markNotamAsViewed(notam);
         }
@@ -92,7 +91,7 @@ const NotamCard = ({
           <div className="notam-head">
             {notam.number || ""} 
             <span className="text-base font-normal text-cyan-300 ml-2">{notam.icao || ""}</span>
-            {isNew && (
+            {isNewNotam && (
               <span className="new-notam-badge ml-2">
                 NEW {remainingTime > 0 && `(${remainingTime}s)`}
               </span>
