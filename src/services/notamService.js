@@ -1,79 +1,52 @@
-// Real FAA NOTAM API service
+// Real API service that calls your backend
 export const fetchNotams = async (icao) => {
   try {
-    // Get FAA API credentials from config
-    const response = await fetch('/config.json');
-    const config = await response.json();
+    console.log(`[notamService] Fetching NOTAMs for ${icao} from backend...`);
     
-    // First, get access token
-    const tokenResponse = await fetch('https://external-api.faa.gov/notamapi/v1/oauthtoken', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        'grant_type': 'client_credentials',
-        'client_id': config.faa_client_id,
-        'client_secret': config.faa_client_secret
-      })
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error(`Token request failed: ${tokenResponse.status}`);
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    // Now fetch NOTAMs using the token
-    const notamResponse = await fetch(`https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}`, {
+    const response = await fetch(`/api/notams?icao=${icao}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     });
-
-    if (!notamResponse.ok) {
-      throw new Error(`NOTAM request failed: ${notamResponse.status}`);
+    
+    console.log(`[notamService] Response status for ${icao}:`, response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[notamService] HTTP error for ${icao}:`, response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
     }
-
-    const notamData = await notamResponse.json();
     
-    // Transform FAA API response to your app's format
-    const notams = notamData.items?.map(item => ({
-      id: item.id,
-      number: item.number,
-      type: item.type,
-      classification: item.classification,
-      icao: icao,
-      location: item.location,
-      validFrom: item.effectiveStart,
-      validTo: item.effectiveEnd,
-      summary: item.text,
-      body: item.text,
-      qLine: item.qLine || `${item.number} NOTAM ${item.type}${icao}`,
-      issued: item.created,
-      effective: item.effectiveStart,
-      expires: item.effectiveEnd
-    })) || [];
-
-    return notams;
-
+    const data = await response.json();
+    console.log(`[notamService] Received ${data.length} NOTAMs for ${icao}:`, data);
+    
+    // Ensure we return an array, even if empty
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data.error) {
+      console.error(`[notamService] API returned error for ${icao}:`, data.error);
+      return { error: data.error };
+    } else {
+      console.warn(`[notamService] Unexpected data format for ${icao}:`, data);
+      return [];
+    }
+    
   } catch (error) {
-    console.error(`Error fetching NOTAMs for ${icao}:`, error);
-    
-    // Return error object that your app expects
+    console.error(`[notamService] Error fetching NOTAMs for ${icao}:`, error);
     return { error: error.message };
   }
 };
 
-// Keep the mock function for development/testing
+// Mock service for development/testing - now calls the real backend
 export const mockFetchNotams = async (icao) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
-  
-  // Mock data - different NOTAMs for different ICAOs
+  console.log(`[notamService] mockFetchNotams called for ${icao}, routing to real API...`);
+  return await fetchNotams(icao);
+};
+
+// Development mock data (only used if backend is down)
+export const getDevMockNotams = (icao) => {
   const mockData = {
     'KJFK': [
       {
@@ -133,3 +106,38 @@ export const mockFetchNotams = async (icao) => {
   
   return mockData[icao] || [];
 };
+
+// Fallback service with retry logic
+export const fetchNotamsWithFallback = async (icao, retries = 2) => {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      console.log(`[notamService] Attempt ${attempt} for ${icao}`);
+      const result = await fetchNotams(icao);
+      
+      // If we get an error object, don't retry
+      if (result && result.error) {
+        console.log(`[notamService] API error for ${icao}, no retry:`, result.error);
+        return result;
+      }
+      
+      // Success
+      return result;
+      
+    } catch (error) {
+      console.warn(`[notamService] Attempt ${attempt} failed for ${icao}:`, error.message);
+      
+      if (attempt === retries + 1) {
+        console.error(`[notamService] All ${retries + 1} attempts failed for ${icao}`);
+        // Return dev mock data as last resort
+        console.log(`[notamService] Returning fallback mock data for ${icao}`);
+        return getDevMockNotams(icao);
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+// Export the main function to use
+export default fetchNotams;
