@@ -15,7 +15,7 @@ import SaveSetModal from './components/SaveSetModal';
 import NotificationSystem from './components/NotificationSystem';
 
 // Utils and constants
-import { mockFetchNotams } from './utils/mockData';
+import { fetchNotams } from './services/notamService';
 import { saveIcaos, getSavedIcaos, saveIcaoSets, getIcaoSets } from './utils/storage';
 import { 
   getNotamFlags, 
@@ -390,7 +390,7 @@ function App() {
     try {
       setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'loading' }));
       
-      const result = await mockFetchNotams(icao);
+      const result = await fetchNotams(icao);
       
       if (result?.error) {
         setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'error' }));
