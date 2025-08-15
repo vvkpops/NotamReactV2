@@ -65,3 +65,59 @@ export const FILTER_LABELS = {
   current: 'Current',
   future: 'Future'
 };
+
+// Additional constants that may be needed based on the App.js imports
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.example.com';
+export const API_TIMEOUT = 30000; // 30 seconds
+
+// UI Constants
+export const MAX_ICAO_INPUT_LENGTH = 100;
+export const MIN_CARD_SCALE = 0.7;
+export const MAX_CARD_SCALE = 1.5;
+export const CARD_SCALE_STEP = 0.1;
+
+// Local Storage Keys
+export const STORAGE_KEYS = {
+  ICAO_SETS: 'notam_icao_sets',
+  SAVED_ICAOS: 'notam_saved_icaos',
+  USER_PREFERENCES: 'notam_user_preferences',
+  LAST_SESSION: 'notam_last_session'
+};
+
+// Date Formats
+export const DATE_FORMATS = {
+  NOTAM: 'YYMMDDHHmm',
+  DISPLAY: 'MMM DD, YYYY HH:mm',
+  ISO: 'YYYY-MM-DDTHH:mm:ss.sssZ'
+};
+
+// Error Messages
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Network error occurred. Please check your connection.',
+  API_ERROR: 'API error occurred. Please try again later.',
+  INVALID_ICAO: 'Invalid ICAO code format.',
+  NO_DATA: 'No NOTAM data available.',
+  TIMEOUT: 'Request timed out. Please try again.'
+};
+
+// Success Messages
+export const SUCCESS_MESSAGES = {
+  NOTAMS_LOADED: 'NOTAMs loaded successfully',
+  SET_SAVED: 'ICAO set saved successfully',
+  SET_DELETED: 'ICAO set deleted successfully'
+};
+
+// Default filter state
+export const DEFAULT_FILTERS = {
+  rwy: true,
+  twy: true,
+  rsc: true,
+  crfi: true,
+  ils: true,
+  fuel: true,
+  other: true,
+  cancelled: false,
+  dom: false,
+  current: true,
+  future: true
+};
