@@ -1,13 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>NOTAM Dashboard – Clean Layout</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
-</head>
-<body>
-  <div id="root"></div>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="NOTAM Dashboard - Real-time Notice to Airmen monitoring and management system" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png">
+    
+    <!-- Preconnect to potential external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Optional: Google Fonts for better typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Meta tags for better SEO and social sharing -->
+    <meta property="og:title" content="NOTAM Dashboard" />
+    <meta property="og:description" content="Real-time Notice to Airmen monitoring and management system" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="%PUBLIC_URL%" />
+    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NOTAM Dashboard" />
+    <meta name="twitter:description" content="Real-time Notice to Airmen monitoring and management system" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+    
+    <!-- Prevent zoom on mobile devices for input fields -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <title>NOTAM Dashboard</title>
+    
+    <style>
+      /* Critical CSS for faster loading */
+      body {
+        margin: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #0f172a;
+        color: #e2e8f0;
+      }
+      
+      code {
+        font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+          monospace;
+      }
+      
+      /* Loading spinner styles */
+      .loading-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #0f172a;
+        color: #e2e8f0;
+      }
+      
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #334155;
+        border-top: 4px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .loading-text {
+        margin-left: 20px;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      
+      /* Hide loading screen once React loads */
+      #root:not(:empty) + .loading-container {
+        display: none;
+      }
+      
+      /* Ensure the app takes full height */
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      /* Prevent flash of unstyled content */
+      #root {
+        visibility: hidden;
+      }
+      
+      #root.loaded {
+        visibility: visible;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>JavaScript Required</h1>
+        <p>You need to enable JavaScript to run this NOTAM Dashboard application.</p>
+        <p>Please enable JavaScript in your browser settings and reload the page.</p>
+      </div>
+    </noscript>
+    
+    <!-- Main React app container -->
+    <div id="root"></div>
+    
+    <!-- Loading fallback (shown while React loads) -->
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading NOTAM Dashboard...</div>
+    </div>
+    
+    <script>
+      // Show the app once it's loaded
+      window.addEventListener('load', function() {
+        const root = document.getElementById('root');
+        if (root && root.children.length > 0) {
+          root.classList.add('loaded');
+        }
+      });
+      
+      // Performance monitoring
+      if ('performance' in window) {
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            const perfData = performance.getEntriesByType('navigation')[0];
+            console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+          }, 0);
+        });
+      }
+      
+      // Service Worker registration (for PWA capabilities)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('%PUBLIC_URL%/sw.js')
+            .then(function(registration) {
+              console.log('SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
 </html>
