@@ -1,4 +1,74 @@
-// Mock fetch function - simulates the server API
+// Real FAA NOTAM API service
+export const fetchNotams = async (icao) => {
+  try {
+    // Get FAA API credentials from config
+    const response = await fetch('/config.json');
+    const config = await response.json();
+    
+    // First, get access token
+    const tokenResponse = await fetch('https://external-api.faa.gov/notamapi/v1/oauthtoken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        'grant_type': 'client_credentials',
+        'client_id': config.faa_client_id,
+        'client_secret': config.faa_client_secret
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Token request failed: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    // Now fetch NOTAMs using the token
+    const notamResponse = await fetch(`https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${icao}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!notamResponse.ok) {
+      throw new Error(`NOTAM request failed: ${notamResponse.status}`);
+    }
+
+    const notamData = await notamResponse.json();
+    
+    // Transform FAA API response to your app's format
+    const notams = notamData.items?.map(item => ({
+      id: item.id,
+      number: item.number,
+      type: item.type,
+      classification: item.classification,
+      icao: icao,
+      location: item.location,
+      validFrom: item.effectiveStart,
+      validTo: item.effectiveEnd,
+      summary: item.text,
+      body: item.text,
+      qLine: item.qLine || `${item.number} NOTAM ${item.type}${icao}`,
+      issued: item.created,
+      effective: item.effectiveStart,
+      expires: item.effectiveEnd
+    })) || [];
+
+    return notams;
+
+  } catch (error) {
+    console.error(`Error fetching NOTAMs for ${icao}:`, error);
+    
+    // Return error object that your app expects
+    return { error: error.message };
+  }
+};
+
+// Keep the mock function for development/testing
 export const mockFetchNotams = async (icao) => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
