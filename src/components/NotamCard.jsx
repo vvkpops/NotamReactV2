@@ -1,0 +1,251 @@
+import React from 'react';
+import { 
+  getNotamType, 
+  getHeadClass, 
+  getHeadTitle, 
+  extractRunways, 
+  needsExpansion,
+  isNotamCurrent,
+  isNotamFuture,
+  getClassificationTitle
+} from '../utils/notamUtils';
+import { HEAD_COLOR_STYLES, TIME_STATUS_STYLES } from '../constants';
+
+const NotamCard = ({
+  notam,
+  expandedCardKey,
+  cardScale,
+  isNew,
+  remainingTime,
+  onCardClick,
+  onRawClick,
+  onMarkAsViewed
+}) => {
+  const type = getNotamType(notam);
+  const headClass = getHeadClass(notam);
+  const headTitle = getHeadTitle(notam);
+  const key = (notam.id || notam.number || notam.qLine || notam.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
+  const runways = type === "rwy" ? extractRunways(notam.summary + " " + notam.body) : "";
+  const expanded = expandedCardKey === key;
+  const needsToExpand = needsExpansion(notam.summary);
+  const timeStatus = isNotamCurrent(notam) ? "Current" : isNotamFuture(notam) ? "Future" : "";
+
+  const cardStyles = {
+    position: 'relative',
+    height: needsToExpand && !expanded ? '280px' : 'auto',
+    overflow: expanded ? 'visible' : 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease, height 0.3s ease',
+    background: 'rgba(30, 41, 59, 0.6)',
+    backdropFilter: 'blur(10px)',
+    border: isNew ? '1px solid rgba(236, 72, 153, 0.5)' : '1px solid rgba(148, 163, 184, 0.1)',
+    borderRadius: '12px',
+    boxShadow: isNew ? '0 0 15px rgba(236, 72, 153, 0.4)' : '0 8px 32px rgba(0, 0, 0, 0.3)',
+    transform: `scale(${cardScale})`,
+    transformOrigin: 'top left',
+    marginBottom: `${(cardScale - 1) * 280}px`,
+    marginRight: `${(cardScale - 1) * 320}px`,
+    cursor: needsToExpand ? 'pointer' : 'default'
+  };
+
+  return (
+    <div
+      className={`notam-card notam-animate ${type} ${expanded ? 'expanded-card' : ''} ${!needsToExpand ? 'auto-sized' : ''} ${isNew ? 'new-notam-highlight' : ''}`}
+      id={`notam-${key}`}
+      onClick={() => {
+        if (needsToExpand) {
+          onCardClick(key, notam);
+        } else if (isNew) {
+          onMarkAsViewed(notam);
+        }
+      }}
+      style={cardStyles}
+    >
+      <div className={`card-head ${headClass}`} style={{
+        padding: '0.75rem',
+        fontSize: '1.1rem',
+        fontWeight: 'bold',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        ...HEAD_COLOR_STYLES[headClass]
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
+          <span>{headTitle}</span>
+          <div style={{display: 'flex', alignItems: 'center'}}>
+            {timeStatus && (
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '0.25rem',
+                marginRight: '0.5rem',
+                ...TIME_STATUS_STYLES[timeStatus.toLowerCase()]
+              }}>
+                {timeStatus}
+              </span>
+            )}
+            {type === 'rwy' && runways ? 
+              <span style={{marginLeft: '1rem', fontSize: '1.125rem', fontWeight: '800', letterSpacing: '0.1em'}}>
+                {runways}
+              </span> : 
+              notam.qLine ? 
+                <span style={{marginLeft: '1rem', fontFamily: 'Courier New, monospace', fontSize: '0.75rem', color: '#94a3b8'}}>
+                  {notam.qLine}
+                </span> : ""
+            }
+          </div>
+        </div>
+      </div>
+      
+      <div className="notam-card-content" style={{
+        padding: '0.75rem',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+          <div className="notam-head" style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            color: '#fbbf24',
+            marginBottom: '0.5rem'
+          }}>
+            {notam.number || ""} 
+            <span style={{fontSize: '1rem', fontWeight: 'normal', color: '#67e8f9', marginLeft: '0.5rem'}}>
+              {notam.icao || ""}
+            </span>
+            {isNew && (
+              <span style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                fontSize: '0.7rem',
+                fontWeight: 'bold',
+                padding: '0.1rem 0.4rem',
+                borderRadius: '0.25rem',
+                marginLeft: '0.5rem',
+                animation: 'pulse 2s infinite'
+              }}>
+                NEW {remainingTime > 0 && `(${remainingTime}s)`}
+              </span>
+            )}
+          </div>
+          <a 
+            href="#" 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRawClick(notam);
+            }}
+            style={{
+              color: '#06b6d4',
+              textDecoration: 'none',
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              padding: '0.25rem 0.5rem',
+              border: '1px solid #06b6d4',
+              borderRadius: '0.25rem',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = '#06b6d4';
+              e.target.style.color = '#0f172a';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+              e.target.style.color = '#06b6d4';
+            }}
+          >
+            RAW
+          </a>
+        </div>
+        
+        <div className="notam-meta" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.25rem',
+          marginBottom: '0.75rem',
+          fontSize: '0.875rem',
+          color: '#94a3b8'
+        }}>
+          <span><b>Type:</b> {notam.type || ""}</span>
+          <span><b>Class:</b> {getClassificationTitle(notam.classification)}</span>
+          <span>
+            <b>Valid:</b> {notam.validFrom?.replace('T', ' ').slice(0,16)} → {notam.validTo?.replace('T', ' ').slice(0,16)}
+          </span>
+        </div>
+        
+        {expanded || !needsToExpand ? 
+          <div className="notam-full-text" style={{
+            flex: 1,
+            fontSize: '0.875rem',
+            lineHeight: 1.4,
+            color: '#e2e8f0',
+            overflowY: 'visible',
+            maxHeight: 'none'
+          }}>
+            {notam.summary ? (
+              <div dangerouslySetInnerHTML={{ __html: notam.summary.replace(/\n/g, '<br>') }} />
+            ) : ""}
+          </div>
+          : 
+          <div 
+            className="notam-summary" 
+            style={{
+              flex: 1,
+              fontSize: '0.875rem',
+              lineHeight: 1.4,
+              color: '#e2e8f0',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 6,
+              WebkitBoxOrient: 'vertical'
+            }}
+            dangerouslySetInnerHTML={{ __html: notam.summary ? notam.summary.replace(/\n/g, '<br>') : "" }} 
+          />
+        }
+        
+        {needsToExpand && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onCardClick(key, notam);
+            }}
+            style={{
+              position: 'absolute',
+              bottom: '0.5rem',
+              right: '0.5rem',
+              background: 'rgba(6, 182, 212, 0.8)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '2rem',
+              height: '2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.875rem'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.background = '#06b6d4';
+              e.target.style.transform = 'scale(1.1)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.background = 'rgba(6, 182, 212, 0.8)';
+              e.target.style.transform = 'scale(1)';
+            }}
+            title={expanded ? 'Hide details' : 'Show details'}
+          >
+            <i className={`fa fa-angle-${expanded ? "up" : "down"}`} style={{fontSize: '0.875rem'}}></i>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default NotamCard;
