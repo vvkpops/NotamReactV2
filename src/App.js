@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import './styles/globals.css';
-import './styles/notifications.css';
+import './App.css';
 
 // Components
-import NotificationSystem from './components/NotificationSystem';
-import NotamCard from './components/NotamCard';
 import IcaoInput from './components/IcaoInput';
-import FilterBar from './components/FilterBar';
-import ProgressBar from './components/ProgressBar';
-import IcaoTabs from './components/IcaoTabs';
 import IcaoSetsBar from './components/IcaoSetsBar';
+import FilterBar from './components/FilterBar';
+import IcaoTabs from './components/IcaoTabs';
+import NotamCard from './components/NotamCard';
+import ProgressBar from './components/ProgressBar';
 import BackToTopButton from './components/BackToTopButton';
-import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/Modals';
+import RawNotamModal from './components/RawNotamModal';
+import IcaoSetsModal from './components/IcaoSetsModal';
+import SaveSetModal from './components/SaveSetModal';
+import NotificationSystem from './components/NotificationSystem';
 
-// Utils and Services
+// Utils and constants
+import { mockFetchNotams } from './utils/mockData';
+import { saveIcaos, getSavedIcaos, saveIcaoSets, getIcaoSets } from './utils/storage';
 import { 
   getNotamFlags, 
   getNotamType, 
@@ -21,8 +24,6 @@ import {
   isNotamFuture, 
   shouldShowDespiteFilters 
 } from './utils/notamUtils';
-import { mockFetchNotams } from './services/notamService';
-import { getIcaoSets, saveIcaoSets, getSavedIcaos, saveIcaos } from './utils/storageUtils';
 import { 
   AUTO_REFRESH_INTERVAL_MS, 
   ICAO_BATCH_SIZE, 
@@ -503,7 +504,7 @@ function App() {
     });
   };
 
-  // Filter NOTAMs
+  // Filter NOTAMs - FIXED VERSION
   const getFilteredNotams = () => {
     const allNotams = [];
     
@@ -512,10 +513,48 @@ function App() {
         notams.forEach(notam => {
           const notamWithIcao = { ...notam, icao };
           
-          // Apply filters
-          if (shouldShowDespiteFilters(notamWithIcao, filters, keywordFilter)) {
-            allNotams.push(notamWithIcao);
+          // Get NOTAM flags and type for filtering
+          const flags = getNotamFlags(notamWithIcao);
+          const notamType = getNotamType(notamWithIcao);
+          
+          // Check time-based filters
+          const isCurrent = isNotamCurrent(notamWithIcao);
+          const isFuture = isNotamFuture(notamWithIcao);
+          
+          // Apply time filters
+          if (!filters.current && isCurrent) return;
+          if (!filters.future && isFuture) return;
+          
+          // Apply type filters
+          if (!filters.rwy && notamType === 'rwy') return;
+          if (!filters.twy && notamType === 'twy') return;
+          if (!filters.rsc && notamType === 'rsc') return;
+          if (!filters.crfi && notamType === 'crfi') return;
+          if (!filters.ils && notamType === 'ils') return;
+          if (!filters.fuel && notamType === 'fuel') return;
+          if (!filters.other && notamType === 'other') return;
+          if (!filters.cancelled && notamType === 'cancelled') return;
+          if (!filters.dom && flags.isDom) return;
+          
+          // Apply keyword filter
+          if (keywordFilter.trim()) {
+            const searchText = keywordFilter.toLowerCase();
+            const notamText = (
+              (notamWithIcao.summary || '') + ' ' + 
+              (notamWithIcao.body || '') + ' ' +
+              (notamWithIcao.qLine || '') + ' ' +
+              (notamWithIcao.icao || '')
+            ).toLowerCase();
+            
+            if (!notamText.includes(searchText)) {
+              // Check if this NOTAM should be shown despite filters (new NOTAMs)
+              if (!shouldShowDespiteFilters(notamWithIcao, newNotams)) {
+                return;
+              }
+            }
           }
+          
+          allNotams.push(notamWithIcao);
         });
       }
     });
