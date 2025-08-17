@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-// Components
+// Components Main
 import Header from './components/Header';
 import IcaoInput from './components/IcaoInput';
 import IcaoSetsBar from './components/IcaoSetsBar';
