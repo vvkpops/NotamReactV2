@@ -12,7 +12,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY package*.json ./
 
 # Install ALL dependencies first (including devDependencies for build)
-RUN npm ci --include=dev
+RUN npm install
 
 # Copy source code
 COPY . .
