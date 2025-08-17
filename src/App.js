@@ -112,6 +112,20 @@ function App() {
     return newNotams[notam.icao] && newNotams[notam.icao].has(key);
   };
 
+  // Show a notification for new NOTAMs (FIX for missing function!)
+  const showNewNotamAlert = (text, icao, latestNewNotamKey) => {
+    const newNotification = {
+      id: Date.now(),
+      text,
+      icao,
+      latestNewNotamKey,
+      timestamp: new Date().toLocaleTimeString(),
+      read: false
+    };
+    setNotifications(prev => [newNotification, ...prev.slice(0, 9)]);
+    setNotificationCount(prev => prev + 1);
+  };
+
   // Fetch NOTAMs for ICAO, mark new ones, setup timers, update state
   async function handleFetchNotams(icao, showAlertIfNew = true) {
     if (!activeSession) return { error: true };
