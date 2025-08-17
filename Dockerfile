@@ -1,29 +1,52 @@
-# Build stage
-FROM node:18-alpine as build
+# Use Node.js 18 Alpine for smaller image size
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Add a non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Copy package files first for better Docker layer caching
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci --only=production && npm cache clean --force
 
 # Copy source code
 COPY . .
 
-# Build the app
+# Build the React application
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# Clean up dev dependencies to reduce image size
+RUN npm prune --production
 
-# Copy build files to nginx
-COPY --from=build /app/build /usr/share/nginx/html
+# Change ownership of the app directory to the nodejs user
+RUN chown -R nextjs:nodejs /app
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Switch to non-root user
+USER nextjs
 
-EXPOSE 3000
+# Expose the port that Railway will use
+EXPOSE $PORT
 
-CMD ["nginx", "-g", "daemon off;"]
+# Health check to ensure the application is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "const http = require('http'); \
+    const options = { \
+      host: 'localhost', \
+      port: process.env.PORT || 3001, \
+      path: '/health', \
+      timeout: 5000 \
+    }; \
+    const req = http.request(options, (res) => { \
+      if (res.statusCode === 200) process.exit(0); \
+      else process.exit(1); \
+    }); \
+    req.on('error', () => process.exit(1)); \
+    req.end();"
+
+# Start the application
+CMD ["npm", "start"]
