@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="NOTAM Dashboard V2 - Real-time Notice to Airmen monitoring and management system for aviation professionals" />
+    
+    <!-- App Icons -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    
+    <!-- External CSS Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Meta tags for better SEO and social sharing -->
+    <meta property="og:title" content="NOTAM Dashboard V2" />
+    <meta property="og:description" content="Real-time Notice to Airmen monitoring and management system" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="%PUBLIC_URL%" />
+    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+    
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NOTAM Dashboard V2" />
+    <meta name="twitter:description" content="Real-time Notice to Airmen monitoring and management system" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+    
+    <title>NOTAM Dashboard V2</title>
+    
+    <style>
+      /* Critical CSS for faster loading */
+      body {
+        margin: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #e2e8f0;
+        min-height: 100vh;
+      }
+      
+      code {
+        font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+      }
+      
+      /* Loading spinner styles */
+      .loading-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #e2e8f0;
+      }
+      
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #334155;
+        border-top: 4px solid #06b6d4;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .loading-text {
+        margin-left: 20px;
+        font-size: 18px;
+        font-weight: 500;
+        color: #06b6d4;
+      }
+      
+      /* Hide loading screen once React loads */
+      #root:not(:empty) + .loading-container {
+        display: none;
+      }
+      
+      /* Ensure the app takes full height */
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      /* Prevent flash of unstyled content */
+      #root {
+        visibility: hidden;
+      }
+      
+      #root.loaded {
+        visibility: visible;
+      }
+      
+      /* Aviation-themed loading animation */
+      .plane-loader {
+        display: inline-block;
+        position: relative;
+        width: 80px;
+        height: 80px;
+        margin-right: 20px;
+      }
+      
+      .plane-loader::before {
+        content: '✈️';
+        position: absolute;
+        font-size: 30px;
+        animation: fly 2s linear infinite;
+      }
+      
+      @keyframes fly {
+        0% {
+          transform: translateX(-20px) translateY(0px) rotate(-10deg);
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(60px) translateY(-10px) rotate(10deg);
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 40px; background: rgba(30, 41, 59, 0.6); border-radius: 12px; backdrop-filter: blur(10px);">
+          <h1 style="color: #06b6d4; margin-bottom: 20px;">✈️ NOTAM Dashboard V2</h1>
+          <h2 style="color: #fbbf24; margin-bottom: 20px;">JavaScript Required</h2>
+          <p style="margin-bottom: 15px;">You need to enable JavaScript to run this NOTAM Dashboard application.</p>
+          <p style="margin-bottom: 15px;">This application provides real-time Notice to Airmen (NOTAM) monitoring for aviation professionals.</p>
+          <p><strong>Please enable JavaScript in your browser settings and reload the page.</strong></p>
+        </div>
+      </div>
+    </noscript>
+    
+    <!-- Main React app container -->
+    <div id="root"></div>
+    
+    <!-- Loading fallback (shown while React loads) -->
+    <div class="loading-container">
+      <div class="plane-loader"></div>
+      <div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading NOTAM Dashboard V2...</div>
+      </div>
+    </div>
+    
+    <script>
+      // Show the app once it's loaded
+      window.addEventListener('load', function() {
+        const root = document.getElementById('root');
+        if (root && root.children.length > 0) {
+          root.classList.add('loaded');
+        }
+      });
+      
+      // Performance monitoring
+      if ('performance' in window) {
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            const perfData = performance.getEntriesByType('navigation')[0];
+            if (perfData) {
+              console.log('🚀 Page load time:', Math.round(perfData.loadEventEnd - perfData.loadEventStart), 'ms');
+            }
+          }, 0);
+        });
+      }
+      
+      // Service Worker registration (for PWA capabilities)
+      if ('serviceWorker' in navigator && 'production' === '%NODE_ENV%') {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('%PUBLIC_URL%/sw.js')
+            .then(function(registration) {
+              console.log('✅ SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+              console.log('❌ SW registration failed: ', registrationError);
+            });
+        });
+      }
+      
+      // Error boundary for unhandled JavaScript errors
+      window.addEventListener('error', function(event) {
+        console.error('💥 Unhandled error:', event.error);
+        
+        // Show user-friendly error message
+        const root = document.getElementById('root');
+        if (root && !root.children.length) {
+          root.innerHTML = `
+            <div style="text-align: center; padding: 50px; font-family: Inter, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh;">
+              <div style="max-width: 600px; margin: 0 auto; padding: 40px; background: rgba(30, 41, 59, 0.6); border-radius: 12px;">
+                <h1 style="color: #ef4444; margin-bottom: 20px;">⚠️ Application Error</h1>
+                <p style="margin-bottom: 15px;">The NOTAM Dashboard encountered an unexpected error.</p>
+                <p style="margin-bottom: 20px;">Please refresh the page to try again.</p>
+                <button onclick="window.location.reload()" style="background: #06b6d4; color: #0f172a; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                  🔄 Reload Page
+                </button>
+              </div>
+            </div>
+          `;
+        }
+      });
+    </script>
+  </body>
+</html>
