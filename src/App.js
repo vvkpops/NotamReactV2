@@ -12,10 +12,8 @@ import ProgressBar from './components/ProgressBar';
 import BackToTopButton from './components/BackToTopButton';
 import NotificationSystem from './components/NotificationSystem';
 
-// Modals
-import RawNotamModal from './components/modals/RawNotamModal';
-import IcaoSetsModal from './components/modals/IcaoSetsModal';
-import SaveSetModal from './components/modals/SaveSetModal';
+// Modals - FIXED IMPORT PATH
+import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal';
 
 // Services and Utils
 import { fetchNotamsForIcao } from './services/notamService';
@@ -33,9 +31,9 @@ import {
   markNotamAsViewed,
   shouldShowDespiteFilters 
 } from './utils/notamUtils';
-import { useSessionManagement } from './hooks/useSessionManagement';
-import { useBatchingSystem } from './hooks/useBatchingSystem';
-import { useAutoRefresh } from './hooks/useAutoRefresh';
+
+// FIXED IMPORT PATHS - Import from hooks/index.js
+import { useSessionManagement, useBatchingSystem, useAutoRefresh } from './hooks';
 
 // Constants
 import { 
