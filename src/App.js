@@ -13,7 +13,7 @@ import BackToTopButton from './components/BackToTopButton';
 import NotificationSystem from './components/NotificationSystem';
 
 // Modals - FIXED IMPORT PATH
-import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal';
+import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal/index.js';
 
 // Services and Utils
 import { fetchNotamsForIcao } from './services/notamService';
@@ -33,7 +33,7 @@ import {
 } from './utils/notamUtils';
 
 // FIXED IMPORT PATHS - Import from hooks/index.js
-import { useSessionManagement, useBatchingSystem, useAutoRefresh } from './hooks';
+import { useSessionManagement, useBatchingSystem, useAutoRefresh } from './hooks/index.js';
 
 // Constants
 import { 
