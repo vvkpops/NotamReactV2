@@ -11,8 +11,8 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy package files first for better Docker layer caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies (including dev dependencies for build)
+RUN npm install && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -20,7 +20,7 @@ COPY . .
 # Build the React application
 RUN npm run build
 
-# Clean up dev dependencies to reduce image size
+# Remove dev dependencies and keep only production dependencies
 RUN npm prune --production
 
 # Change ownership of the app directory to the nodejs user
