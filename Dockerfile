@@ -1,18 +1,18 @@
-# Use Node.js 18 Alpine for smaller image size
+# Use Node.js 18 Alpine
 FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Add a non-root user for security
+# Add non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-# Copy package files first for better Docker layer caching
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies (including dev dependencies for build)
-RUN npm install && npm cache clean --force
+# Install ALL dependencies first (including devDependencies for build)
+RUN npm ci --include=dev
 
 # Copy source code
 COPY . .
@@ -20,19 +20,19 @@ COPY . .
 # Build the React application
 RUN npm run build
 
-# Remove dev dependencies and keep only production dependencies
+# Remove dev dependencies after build
 RUN npm prune --production
 
-# Change ownership of the app directory to the nodejs user
+# Change ownership
 RUN chown -R nextjs:nodejs /app
 
 # Switch to non-root user
 USER nextjs
 
-# Expose the port that Railway will use
+# Expose port
 EXPOSE $PORT
 
-# Health check to ensure the application is running
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "const http = require('http'); \
     const options = { \
@@ -48,5 +48,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     req.on('error', () => process.exit(1)); \
     req.end();"
 
-# Start the application
+# Start application
 CMD ["npm", "start"]
