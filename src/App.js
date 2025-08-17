@@ -13,7 +13,7 @@ import BackToTopButton from './components/BackToTopButton';
 import NotificationSystem from './components/NotificationSystem';
 
 // Modals - FIXED IMPORT PATH
-import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal/index.js';
+import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal';
 
 // Services and Utils
 import { fetchNotamsForIcao } from './services/notamService';
@@ -32,8 +32,8 @@ import {
   shouldShowDespiteFilters 
 } from './utils/notamUtils';
 
-// FIXED IMPORT PATHS - Import from hooks/index.js
-import { useSessionManagement, useBatchingSystem, useAutoRefresh } from './hooks/index.js';
+// FIXED IMPORT PATHS - Import from hooks directory
+import { useSessionManagement, useBatchingSystem, useAutoRefresh } from './hooks';
 
 // Constants
 import { 
@@ -84,39 +84,8 @@ function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [keywordFilter, setKeywordFilter] = useState('');
 
-  // Custom hooks
-  const { activeSession } = useSessionManagement();
-  
-  const { 
-    icaoQueue, 
-    setIcaoQueue,
-    batchingActive, 
-    setBatchingActive,
-    startBatching,
-    stopBatching
-  } = useBatchingSystem({
-    activeSession,
-    loadedIcaosSet,
-    loadingIcaosSet,
-    setLoadingIcaosSet,
-    onFetchNotams: handleFetchNotams
-  });
-  
-  const { autoRefreshCountdown } = useAutoRefresh({
-    activeSession,
-    icaoSet,
-    loadedIcaosSet,
-    onRefreshIcao: handleFetchNotams
-  });
-
-  // Function to check if NOTAM is new
-  const isNewNotam = (notam) => {
-    const key = notam.id || notam.number || notam.qLine || notam.summary;
-    return newNotams[notam.icao] && newNotams[notam.icao].has(key);
-  };
-
-  // Handle NOTAM fetching
-  async function handleFetchNotams(icao, showAlertIfNew = true) {
+  // Define handleFetchNotams function first
+  const handleFetchNotams = useCallback(async (icao, showAlertIfNew = true) => {
     if (!activeSession) return { error: true };
     
     try {
@@ -188,7 +157,38 @@ function App() {
       setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'error' }));
       return { error: error.message };
     }
-  }
+  }, [lastNotamIdsByIcao, tabMode, notamExpirationTimes, notamTimers]);
+
+  // Custom hooks - defined after handleFetchNotams
+  const { activeSession } = useSessionManagement();
+  
+  const { 
+    icaoQueue, 
+    setIcaoQueue,
+    batchingActive, 
+    setBatchingActive,
+    startBatching,
+    stopBatching
+  } = useBatchingSystem({
+    activeSession,
+    loadedIcaosSet,
+    loadingIcaosSet,
+    setLoadingIcaosSet,
+    onFetchNotams: handleFetchNotams
+  });
+  
+  const { autoRefreshCountdown } = useAutoRefresh({
+    activeSession,
+    icaoSet,
+    loadedIcaosSet,
+    onRefreshIcao: handleFetchNotams
+  });
+
+  // Function to check if NOTAM is new
+  const isNewNotam = (notam) => {
+    const key = notam.id || notam.number || notam.qLine || notam.summary;
+    return newNotams[notam.icao] && newNotams[notam.icao].has(key);
+  };
 
   const showNewNotamAlert = (text, icao, latestNewNotamKey) => {
     const newNotification = {
