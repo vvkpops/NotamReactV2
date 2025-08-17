@@ -31,8 +31,7 @@
     "format": "prettier --write src/**/*.{js,jsx,css,md}",
     "analyze": "npm run build && npx source-map-explorer 'build/static/js/*.js'",
     "clean": "rm -rf build node_modules",
-    "reinstall": "npm run clean && npm install",
-    "postinstall": "npm run build"
+    "reinstall": "npm run clean && npm install"
   },
   "eslintConfig": {
     "extends": [
