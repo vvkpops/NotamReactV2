@@ -16,9 +16,7 @@
     "production": {
       "variables": {
         "NODE_ENV": "production",
-        "PORT": "$PORT",
-        "FAA_CLIENT_ID": "6f4bcfb132e24eb7a9be019a67cbd9fd",
-        "FAA_CLIENT_SECRET": "E3CeB511DcA94733A9103F215f5c7efb"
+        "PORT": "$PORT"
       }
     }
   }
