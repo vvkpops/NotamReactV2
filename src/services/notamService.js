@@ -26,11 +26,12 @@ export const fetchNotamsForIcao = async (icao) => {
     }
     
     const data = await response.json();
-    console.log(`[notamService] Received ${Array.isArray(data) ? data.length : 'unknown'} NOTAMs for ${icao}`);
-    
-    // Ensure we return an array, even if empty
+    // ---- FIX ----
+    // If the response is an object with a 'data' property, use it
     if (Array.isArray(data)) {
       return data;
+    } else if (Array.isArray(data.data)) {
+      return data.data;
     } else if (data.error) {
       console.error(`[notamService] API returned error for ${icao}:`, data.error);
       return { error: data.error };
