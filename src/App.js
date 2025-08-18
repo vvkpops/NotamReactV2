@@ -112,7 +112,7 @@ function App() {
     return newNotams[notam.icao] && newNotams[notam.icao].has(key);
   };
 
-  // Show a notification for new NOTAMs (FIX for missing function!)
+  // Show a notification for new NOTAMs
   const showNewNotamAlert = (text, icao, latestNewNotamKey) => {
     const newNotification = {
       id: Date.now(),
@@ -184,7 +184,7 @@ function App() {
     }
   }
 
-  // ICAO Sets logic, modals, new set, load/save/delete, etc. (ported from working version)
+  // ICAO Sets logic, modals, new set, load/save/delete, etc.
   const isCurrentSetSaved = () => {
     return icaoSets.some(set => 
       set.icaos.length === icaoSet.length && 
@@ -230,9 +230,11 @@ function App() {
     if (!newSetName.trim() || icaoSet.length === 0) return;
     const sets = getIcaoSets();
     const newSet = {
+      id: Date.now() + Math.floor(Math.random() * 100000),
       name: newSetName.trim(),
       icaos: [...icaoSet],
-      created: new Date().toISOString()
+      created: new Date().toISOString(),
+      lastUsed: new Date().toISOString()
     };
     sets.push(newSet);
     saveIcaoSets(sets);
@@ -321,6 +323,11 @@ function App() {
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, read: true } : n));
     setNotificationCount(prev => Math.max(0, prev - 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  // "Mark All as Read" handler
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotificationCount(0);
   };
 
   const showRawNotamModal = (notam) => {
@@ -493,6 +500,7 @@ function App() {
         setNotifications={setNotifications}
         setNotificationCount={setNotificationCount}
         onNotificationClick={handleNotificationClick}
+        onMarkAllRead={handleMarkAllNotificationsRead}
       />
       {/* Modals */}
       <RawNotamModal
