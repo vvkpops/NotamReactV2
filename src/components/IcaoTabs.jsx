@@ -30,7 +30,7 @@ const IcaoTabs = ({
   };
 
   return (
-    <div className="icao-tabs mb-4">
+    <div className="flex flex-wrap items-center gap-2 mb-4">
       <button
         onClick={() => onTabClick("ALL")}
         className={`icao-tab ${tabMode === "ALL" ? "active" : ""}`}
