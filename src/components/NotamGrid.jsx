@@ -2,8 +2,7 @@ import React from 'react';
 import NotamCard from './NotamCard';
 import { 
   applyNotamFilters, 
-  sortNotams, 
-  getNotamRemainingTime 
+  sortNotams
 } from '../utils/notamUtils';
 
 const NotamGrid = ({
@@ -11,13 +10,10 @@ const NotamGrid = ({
   notamDataByIcao,
   filters,
   keywordFilter,
-  newNotams,
   expandedCardKey,
   cardScale,
-  notamExpirationTimes,
   onCardClick,
-  onShowRaw,
-  isNewNotam
+  onShowRaw
 }) => {
   
   const getFilteredNotams = () => {
@@ -37,11 +33,11 @@ const NotamGrid = ({
       sortedIcaos.forEach(icao => {
         const notamsForIcao = [...icaoGroups[icao]];
         
+        // VANILLA JS APPROACH - Simple filtering without complex new NOTAM logic
         const filteredNotamsForIcao = applyNotamFilters(
           notamsForIcao, 
           filters, 
-          keywordFilter, 
-          newNotams
+          keywordFilter
         );
         
         if (filteredNotamsForIcao.length > 0) {
@@ -65,7 +61,7 @@ const NotamGrid = ({
       const notams = notamDataByIcao[tabMode];
       if (Array.isArray(notams)) {
         const notamsWithIcao = notams.map(n => ({ ...n, icao: tabMode }));
-        const filtered = applyNotamFilters(notamsWithIcao, filters, keywordFilter, newNotams);
+        const filtered = applyNotamFilters(notamsWithIcao, filters, keywordFilter);
         return sortNotams(filtered, 'priority');
       }
       return [];
@@ -92,56 +88,3 @@ const NotamGrid = ({
             </span>
           </h3>
         </div>
-      );
-    }
-    
-    const key = (notam.id || notam.number || notam.qLine || notam.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
-    const cardKey = `${notam.icao}-${key}-${index}`;
-    const expanded = expandedCardKey === cardKey;
-    const isNew = isNewNotam(notam);
-    const remainingTime = isNew ? getNotamRemainingTime(notam, notamExpirationTimes) : 0;
-
-    return (
-      <NotamCard
-        key={cardKey}
-        notam={notam}
-        cardKey={cardKey}
-        expanded={expanded}
-        cardScale={cardScale}
-        isNew={isNew}
-        remainingTime={remainingTime}
-        onCardClick={onCardClick}
-        onShowRaw={onShowRaw}
-      />
-    );
-  };
-
-  const filteredNotams = getFilteredNotams();
-
-  return (
-    <div id="result">
-      {filteredNotams.length > 0 ? (
-        <div 
-          className="notam-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: '1rem',
-            marginTop: '1rem'
-          }}
-        >
-          {filteredNotams.map((notam, index) => renderNotamCard(notam, index))}
-        </div>
-      ) : (
-        <div className="glass p-8 rounded-lg text-center text-base text-slate-400">
-          {Object.keys(notamDataByIcao).length === 0 
-            ? "Add some ICAO codes above to get started"
-            : "No NOTAMs found matching current filters"
-          }
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default NotamGrid;
