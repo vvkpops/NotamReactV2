@@ -13,7 +13,7 @@ import BackToTopButton from './components/BackToTopButton';
 import NotificationSystem from './components/NotificationSystem';
 
 // Modals
-import { RawNotamModal, IcaoSetsModal, SaveSetModal } from './components/modal';
+import { RawNotamModal, IcaoRawModal, IcaoSetsModal, SaveSetModal } from './components/modal';
 
 // Services and Utils
 import { fetchNotamsForIcao } from './services/notamService';
@@ -48,7 +48,7 @@ function App() {
   const [tabMode, setTabMode] = useState("ALL");
   const [expandedCardKey, setExpandedCardKey] = useState(null);
   
-  // ICAO Sets functionality
+  // ICAO Sets functionality - FIXED: Initialize as empty array instead of undefined
   const [icaoSets, setIcaoSets] = useState([]);
   const [showIcaoSetsModal, setShowIcaoSetsModal] = useState(false);
   const [newSetName, setNewSetName] = useState('');
@@ -59,6 +59,10 @@ function App() {
   const [showRawModal, setShowRawModal] = useState(false);
   const [rawModalTitle, setRawModalTitle] = useState('');
   const [rawModalContent, setRawModalContent] = useState('');
+  
+  // NEW: ICAO Raw Modal state
+  const [showIcaoRawModal, setShowIcaoRawModal] = useState(false);
+  const [icaoRawModalData, setIcaoRawModalData] = useState({ icao: '', notams: [] });
   
   // UI state
   const [notificationCount, setNotificationCount] = useState(0);
@@ -331,25 +335,23 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // "Mark All as Read" handler
-  const handleMarkAllNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setNotificationCount(0);
+  // NEW: ICAO Raw Modal handler
+  const handleShowIcaoRaw = (icao) => {
+    const notams = notamDataByIcao[icao] || [];
+    setIcaoRawModalData({ icao, notams });
+    setShowIcaoRawModal(true);
   };
 
-  const showRawNotamModal = (title, content) => {
-    setRawModalTitle(title);
-    setRawModalContent(content);
-    setShowRawModal(true);
-  };
-
-  // Load saved data on mount
+  // FIXED: Load saved data on mount with proper error handling
   useEffect(() => {
     try {
       const savedIcaos = getSavedIcaos();
       const savedSets = getIcaoSets();
       const cachedData = getCachedNotamData();
-      setIcaoSets(savedSets);
+      
+      // FIXED: Ensure icaoSets is always an array
+      setIcaoSets(Array.isArray(savedSets) ? savedSets : []);
+      
       if (savedIcaos.length > 0) {
         setIcaoSet(savedIcaos);
         if (cachedData.notamData && Object.keys(cachedData.notamData).length > 0) {
@@ -377,6 +379,8 @@ function App() {
       }
     } catch (e) {
       console.error('Failed to load saved data:', e);
+      // FIXED: Set empty array as fallback
+      setIcaoSets([]);
     }
   }, []);
 
@@ -447,7 +451,8 @@ function App() {
           icaoSet={icaoSet}
           notamDataByIcao={notamDataByIcao}
           flashingIcaos={new Set()} // Simple approach - no flashing logic
-          newNotams={{}} // Simple approach - no complex new NOTAM tracking
+          newNotams={{} // Simple approach - no complex new NOTAM tracking
+          onShowIcaoRaw={handleShowIcaoRaw}
         />
         <NotamGrid
           tabMode={tabMode}
@@ -457,7 +462,6 @@ function App() {
           expandedCardKey={expandedCardKey}
           cardScale={cardScale}
           onCardClick={handleCardClick}
-          onShowRaw={showRawNotamModal}
         />
       </div>
       <BackToTopButton />
@@ -469,7 +473,6 @@ function App() {
         setNotifications={setNotifications}
         setNotificationCount={setNotificationCount}
         onNotificationClick={handleNotificationClick}
-        onMarkAllRead={handleMarkAllNotificationsRead}
       />
       {/* Modals */}
       <RawNotamModal
@@ -477,6 +480,12 @@ function App() {
         title={rawModalTitle}
         content={rawModalContent}
         onClose={() => setShowRawModal(false)}
+      />
+      <IcaoRawModal
+        show={showIcaoRawModal}
+        icao={icaoRawModalData.icao}
+        notams={icaoRawModalData.notams}
+        onClose={() => setShowIcaoRawModal(false)}
       />
       <IcaoSetsModal
         show={showIcaoSetsModal}
