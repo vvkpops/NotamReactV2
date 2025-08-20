@@ -13,7 +13,7 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
       width: '100%',
       height: '100%',
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      zIndex: 1000,
+      zIndex: 10000, // FIXED: Increased z-index
       justifyContent: 'center',
       alignItems: 'center'
     }}>
@@ -39,7 +39,7 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
         position: 'relative',
         overflow: 'hidden',
         animation: 'modalOpen 0.3s',
-        zIndex: 1
+        zIndex: 10001
       }}>
         <div style={{
           display: 'flex',
@@ -84,7 +84,7 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
   );
 };
 
-// ICAO Sets Modal Component
+// ICAO Sets Modal Component (Fixed z-index and backdrop)
 export const IcaoSetsModal = ({ 
   show, 
   onClose, 
@@ -99,29 +99,40 @@ export const IcaoSetsModal = ({
   if (!show) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      zIndex: 1000,
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center'
-    }}>
+    <>
+      {/* Backdrop */}
       <div 
-        className="glass"
         style={{
-          width: '90%',
-          maxWidth: '600px',
-          maxHeight: '80vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 9998
         }}
-      >
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '90%',
+        maxWidth: '600px',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'rgba(30, 41, 59, 0.6)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(148, 163, 184, 0.1)',
+        borderRadius: '12px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+        zIndex: 9999
+      }}>
         <div style={{ padding: '1rem', borderBottom: '1px solid #475569' }}>
           <h3 className="text-xl font-bold text-cyan-300 mb-4">ICAO Sets</h3>
           
@@ -189,35 +200,47 @@ export const IcaoSetsModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
-// Save Set Modal Component
+// Save Set Modal Component (Fixed z-index)
 export const SaveSetModal = ({ show, onClose, onSave }) => {
   if (!show) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      zIndex: 1100,
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center'
-    }}>
+    <>
+      {/* Backdrop */}
       <div 
-        className="glass"
         style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          zIndex: 10998
+        }}
+        onClick={() => onSave(false)}
+      />
+      
+      {/* Modal */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
           width: '90%',
           maxWidth: '450px',
           padding: '24px',
           borderRadius: '8px',
-          animation: 'modalOpen 0.3s ease'
+          animation: 'modalOpen 0.3s ease',
+          background: 'rgba(30, 41, 59, 0.6)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(148, 163, 184, 0.1)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          zIndex: 10999
         }}
       >
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#67e8f9', marginBottom: '16px', textAlign: 'center' }}>
@@ -263,7 +286,7 @@ export const SaveSetModal = ({ show, onClose, onSave }) => {
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
