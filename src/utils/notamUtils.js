@@ -1,7 +1,6 @@
 import { 
   ICAO_CLASSIFICATION_MAP, 
-  NOTAM_TYPES,
-  NEW_NOTAM_HIGHLIGHT_DURATION_MS 
+  NOTAM_TYPES
 } from '../constants';
 
 // Classification and type utilities
@@ -77,259 +76,55 @@ export const extractRunways = (text) => {
   return [...new Set(rwyMatches)].join(', ');
 };
 
-export const needsExpansion = (summary) => {
-  return summary && summary.length > 250;
+// VANILLA JS APPROACH - Smart content-based expansion
+export const needsExpansion = (summary, body, cardScale = 1.0) => {
+  if (!summary) return false;
+  
+  // Consider scale and total content like vanilla JS
+  const baseLength = 250;
+  const adjustedThreshold = Math.round(baseLength * cardScale);
+  const totalLength = (summary ? summary.length : 0) + (body ? body.length : 0);
+  
+  return totalLength > adjustedThreshold || (summary && summary.length > adjustedThreshold * 0.8);
 };
 
-export const shouldShowDespiteFilters = (notam, newNotams) => {
-  const key = notam.id || notam.number || notam.qLine || notam.summary;
-  return newNotams[notam.icao] && newNotams[notam.icao].has(key);
+// VANILLA JS APPROACH - Simple recent NOTAM detection (no complex timers)
+export const isNewNotam = (notam) => {
+  // Simple: if NOTAM was issued in last 10 minutes, consider it "new"
+  const issuedDate = parseDate(notam.issued || notam.validFrom);
+  if (!issuedDate) return false;
+  
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  return issuedDate > tenMinutesAgo;
 };
 
-// New NOTAM tracking and management
-export const trackNewNotams = (
-  icao, 
-  newNotamKeys, 
-  setNewNotams, 
-  setFlashingIcaos, 
-  setPendingNewNotams
-) => {
-  // Add to flashing ICAOs
-  setFlashingIcaos(prev => {
-    const newSet = new Set(prev);
-    newSet.add(icao);
-    return newSet;
+// VANILLA JS APPROACH - Simple NOTAM comparison logic
+export const compareNotamSets = (icao, previousNotams, newNotams) => {
+  const prevKeys = new Set((previousNotams || []).map(n => n.id || n.number || n.qLine || n.summary));
+  const newKeys = new Set((newNotams || []).map(n => n.id || n.number || n.qLine || n.summary));
+  
+  // Detect NEW NOTAMs
+  const addedNotams = (newNotams || []).filter(n => {
+    const key = n.id || n.number || n.qLine || n.summary;
+    return !prevKeys.has(key);
   });
   
-  // Track new NOTAMs
-  setNewNotams(prev => {
-    const updated = { ...prev };
-    if (!updated[icao]) {
-      updated[icao] = new Set();
-    }
-    
-    // Add all new keys
-    for (const key of newNotamKeys) {
-      updated[icao].add(key);
-    }
-    
-    return updated;
+  // Detect REMOVED NOTAMs
+  const removedNotams = (previousNotams || []).filter(n => {
+    const key = n.id || n.number || n.qLine || n.summary;
+    return !newKeys.has(key);
   });
   
-  // Add to pending new NOTAMs
-  setPendingNewNotams(prev => {
-    const updated = { ...prev };
-    if (!updated[icao]) {
-      updated[icao] = new Set();
-    }
-    
-    // Add all new keys
-    for (const key of newNotamKeys) {
-      updated[icao].add(key);
-    }
-    
-    return updated;
-  });
-};
-
-// Setup timers for NOTAMs - called when ICAO tab is selected or on explicit setup
-export const setupNotamTimers = (
-  icao, 
-  pendingKeys,
-  notamExpirationTimes, 
-  notamTimers,
-  setNewNotams, 
-  setFlashingIcaos, 
-  setNotamExpirationTimes, 
-  setNotamTimers,
-  setPendingNewNotams
-) => {
-  if (!pendingKeys || pendingKeys.size === 0) return;
-  
-  // Remove these keys from pending
-  setPendingNewNotams(prev => {
-    const updated = { ...prev };
-    if (updated[icao]) {
-      for (const key of pendingKeys) {
-        updated[icao].delete(key);
-      }
-      
-      if (updated[icao].size === 0) {
-        delete updated[icao];
-      }
-    }
-    return updated;
-  });
-  
-  // Setup timers for each key
-  for (const key of pendingKeys) {
-    // Set expiration time for this NOTAM
-    const expirationTime = Date.now() + NEW_NOTAM_HIGHLIGHT_DURATION_MS;
-    setNotamExpirationTimes(prev => ({
-      ...prev,
-      [key]: expirationTime
-    }));
-    
-    // Clear any existing timer
-    if (notamTimers[key]) {
-      clearInterval(notamTimers[key]);
-    }
-    
-    // Set up a timer for this NOTAM
-    const timerId = setInterval(() => {
-      const now = Date.now();
-      if (now >= expirationTime) {
-        // Time's up - clear new status
-        clearInterval(timerId);
-        
-        // Remove from newNotams
-        setNewNotams(prev => {
-          const updated = { ...prev };
-          if (updated[icao] && updated[icao].has(key)) {
-            updated[icao].delete(key);
-            if (updated[icao].size === 0) {
-              delete updated[icao];
-              
-              // Check if this was the last new NOTAM for this ICAO
-              setFlashingIcaos(prev => {
-                const newSet = new Set(prev);
-                // Only remove if there are no other new NOTAMs for this ICAO
-                if (!updated[icao] || updated[icao].size === 0) {
-                  newSet.delete(icao);
-                }
-                return newSet;
-              });
-            }
-          }
-          return updated;
-        });
-        
-        // Remove from timers and expiration times
-        setNotamTimers(prev => {
-          const updated = { ...prev };
-          delete updated[key];
-          return updated;
-        });
-        
-        setNotamExpirationTimes(prev => {
-          const updated = { ...prev };
-          delete updated[key];
-          return updated;
-        });
-      }
-    }, 1000);
-    
-    // Store timer ID
-    setNotamTimers(prev => ({
-      ...prev,
-      [key]: timerId
-    }));
-  }
-};
-
-// Get remaining time for a specific NOTAM
-export const getNotamRemainingTime = (notam, notamExpirationTimes) => {
-  const key = notam.id || notam.number || notam.qLine || notam.summary;
-  const expirationTime = notamExpirationTimes[key];
-  
-  if (!expirationTime) return 0;
-  
-  const remainingMs = Math.max(0, expirationTime - Date.now());
-  return Math.ceil(remainingMs / 1000);
-};
-
-// Mark a NOTAM as viewed/no longer new
-export const markNotamAsViewed = (notam, context) => {
-  const {
-    newNotams,
-    setNewNotams,
-    setFlashingIcaos,
-    notamTimers,
-    setNotamTimers,
-    setNotamExpirationTimes,
-    setPendingNewNotams,
-    setNotifications,
-    updateNotificationCount
-  } = context;
-
-  const key = notam.id || notam.number || notam.qLine || notam.summary;
-  
-  // Check if NOTAM is actually new
-  if (!newNotams[notam.icao] || !newNotams[notam.icao].has(key)) {
-    return;
-  }
-  
-  // Clear timer if exists
-  if (notamTimers[key]) {
-    clearInterval(notamTimers[key]);
-    
-    setNotamTimers(prev => {
-      const updated = { ...prev };
-      delete updated[key];
-      return updated;
-    });
-    
-    setNotamExpirationTimes(prev => {
-      const updated = { ...prev };
-      delete updated[key];
-      return updated;
-    });
-  }
-  
-  // Remove from newNotams
-  setNewNotams(prev => {
-    const updated = { ...prev };
-    if (updated[notam.icao]) {
-      updated[notam.icao].delete(key);
-      if (updated[notam.icao].size === 0) {
-        delete updated[notam.icao];
-        
-        setFlashingIcaos(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(notam.icao);
-          return newSet;
-        });
-      }
-    }
-    return updated;
-  });
-  
-  setPendingNewNotams(prev => {
-    const updated = { ...prev };
-    if (updated[notam.icao]) {
-      updated[notam.icao].delete(key);
-      if (updated[notam.icao].size === 0) {
-        delete updated[notam.icao];
-      }
-    }
-    return updated;
-  });
-  
-  // Update notifications
-  if (setNotifications) {
-    setNotifications(prev => 
-      prev.map(notif => {
-        if (notif.icao === notam.icao && notif.latestNewNotamKey === key) {
-          return { ...notif, read: true };
-        }
-        return notif;
-      })
-    );
-  }
-  
-  if (updateNotificationCount) {
-    updateNotificationCount();
-  }
+  return {
+    added: addedNotams,
+    removed: removedNotams,
+    total: newNotams ? newNotams.length : 0
+  };
 };
 
 // Filtering utilities
-export const applyNotamFilters = (notams, filters, keywordFilter, newNotams) => {
+export const applyNotamFilters = (notams, filters, keywordFilter) => {
   return notams.filter(notam => {
-    // Always show new NOTAMs regardless of filters
-    if (shouldShowDespiteFilters(notam, newNotams)) {
-      return true;
-    }
-    
     const flags = getNotamFlags(notam);
     const notamType = getNotamType(notam);
     const text = (notam.summary + ' ' + notam.body).toLowerCase();
