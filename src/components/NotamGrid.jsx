@@ -12,8 +12,7 @@ const NotamGrid = ({
   keywordFilter,
   expandedCardKey,
   cardScale,
-  onCardClick,
-  onShowRaw
+  onCardClick
 }) => {
   
   const getFilteredNotams = () => {
@@ -103,7 +102,6 @@ const NotamGrid = ({
         expanded={expanded}
         cardScale={cardScale}
         onCardClick={onCardClick}
-        onShowRaw={onShowRaw}
       />
     );
   };
