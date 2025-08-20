@@ -60,9 +60,8 @@ function App() {
   const [rawModalTitle, setRawModalTitle] = useState('');
   const [rawModalContent, setRawModalContent] = useState('');
   
-  // NEW: ICAO Raw Modal state
+  // NEW: ICAO Raw Modal state - Updated to handle both single ICAO and ALL
   const [showIcaoRawModal, setShowIcaoRawModal] = useState(false);
-  const [icaoRawModalData, setIcaoRawModalData] = useState({ icao: '', notams: [] });
   
   // UI state
   const [notificationCount, setNotificationCount] = useState(0);
@@ -335,10 +334,8 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // NEW: ICAO Raw Modal handler
-  const handleShowIcaoRaw = (icao) => {
-    const notams = notamDataByIcao[icao] || [];
-    setIcaoRawModalData({ icao, notams });
+  // NEW: Updated RAW Modal handler for context-aware display
+  const handleShowRaw = (currentTabMode, currentNotamData) => {
     setShowIcaoRawModal(true);
   };
 
@@ -444,6 +441,9 @@ function App() {
           cardScale={cardScale}
           setCardScale={setCardScale}
           onReloadAll={handleReloadAll}
+          onShowRaw={handleShowRaw}
+          tabMode={tabMode}
+          notamDataByIcao={notamDataByIcao}
         />
         <IcaoTabs
           tabMode={tabMode}
@@ -451,8 +451,7 @@ function App() {
           icaoSet={icaoSet}
           notamDataByIcao={notamDataByIcao}
           flashingIcaos={new Set()} // Simple approach - no flashing logic
-          newNotams={{} // Simple approach - no complex new NOTAM tracking
-          onShowIcaoRaw={handleShowIcaoRaw}
+          newNotams={{}} // Simple approach - no complex new NOTAM tracking
         />
         <NotamGrid
           tabMode={tabMode}
@@ -483,8 +482,8 @@ function App() {
       />
       <IcaoRawModal
         show={showIcaoRawModal}
-        icao={icaoRawModalData.icao}
-        notams={icaoRawModalData.notams}
+        tabMode={tabMode}
+        notamDataByIcao={notamDataByIcao}
         onClose={() => setShowIcaoRawModal(false)}
       />
       <IcaoSetsModal
