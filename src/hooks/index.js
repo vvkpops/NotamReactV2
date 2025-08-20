@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { AUTO_REFRESH_INTERVAL_MS } from '../constants';
 
 // Session Management Hook
 export const useSessionManagement = () => {
@@ -56,7 +55,7 @@ export const useSessionManagement = () => {
   return { activeSession };
 };
 
-// Batching System Hook
+// Batching System Hook (Simplified - removed complex timer logic)
 export const useBatchingSystem = ({ 
   activeSession, 
   loadedIcaosSet, 
@@ -192,59 +191,6 @@ export const useBatchingSystem = ({
   };
 };
 
-// Auto Refresh Hook
-export const useAutoRefresh = ({ activeSession, icaoSet, loadedIcaosSet, onRefreshIcao }) => {
-  const [autoRefreshCountdown, setAutoRefreshCountdown] = useState(AUTO_REFRESH_INTERVAL_MS / 1000);
-  const autoRefreshTimerRef = useRef(null);
-
-  const performAutoRefresh = useCallback(async () => {
-    if (!activeSession || !icaoSet.length) return;
-    
-    console.log('Starting auto-refresh');
-    
-    // Refresh all loaded ICAOs
-    for (const icao of icaoSet) {
-      if (loadedIcaosSet.has(icao)) {
-        try {
-          await onRefreshIcao(icao, true);
-        } catch (error) {
-          console.error(`Auto-refresh failed for ${icao}:`, error);
-        }
-      }
-    }
-  }, [activeSession, icaoSet, loadedIcaosSet, onRefreshIcao]);
-
-  useEffect(() => {
-    if (!activeSession) {
-      if (autoRefreshTimerRef.current) {
-        clearInterval(autoRefreshTimerRef.current);
-        autoRefreshTimerRef.current = null;
-      }
-      return;
-    }
-
-    const updateTimer = () => {
-      setAutoRefreshCountdown(prev => {
-        if (prev <= 1) {
-          performAutoRefresh();
-          return AUTO_REFRESH_INTERVAL_MS / 1000;
-        }
-        return prev - 1;
-      });
-    };
-
-    autoRefreshTimerRef.current = setInterval(updateTimer, 1000);
-    
-    return () => {
-      if (autoRefreshTimerRef.current) {
-        clearInterval(autoRefreshTimerRef.current);
-      }
-    };
-  }, [activeSession, performAutoRefresh]);
-
-  return { autoRefreshCountdown };
-};
-
 // Local Storage Hook
 export const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
@@ -254,58 +200,3 @@ export const useLocalStorage = (key, initialValue) => {
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
       return initialValue;
-    }
-  });
-
-  const setValue = useCallback((value) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
-    }
-  }, [key, storedValue]);
-
-  return [storedValue, setValue];
-};
-
-// Scroll to Top Hook
-export const useScrollToTop = () => {
-  const [showBackToTop, setShowBackToTop] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.pageYOffset > 300);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  return { showBackToTop, scrollToTop };
-};
-
-// Click Outside Hook
-export const useClickOutside = (ref, handler) => {
-  useEffect(() => {
-    const listener = (event) => {
-      if (!ref.current || ref.current.contains(event.target)) {
-        return;
-      }
-      handler(event);
-    };
-
-    document.addEventListener('mousedown', listener);
-    document.addEventListener('touchstart', listener);
-
-    return () => {
-      document.removeEventListener('mousedown', listener);
-      document.removeEventListener('touchstart', listener);
-    };
-  }, [ref, handler]);
-};
