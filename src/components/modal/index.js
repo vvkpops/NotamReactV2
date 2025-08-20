@@ -84,40 +84,100 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
   );
 };
 
-// ICAO Raw NOTAMs Modal Component - NEW
-export const IcaoRawModal = ({ show, icao, notams, onClose }) => {
+// ICAO Raw NOTAMs Modal Component - UPDATED for ALL tab support
+export const IcaoRawModal = ({ show, tabMode, notamDataByIcao, onClose }) => {
   if (!show) return null;
 
   const formatRawContent = () => {
-    if (!notams || notams.length === 0) {
-      return `No NOTAMs available for ${icao}`;
+    if (!notamDataByIcao || Object.keys(notamDataByIcao).length === 0) {
+      return `No NOTAMs available`;
     }
 
-    return notams.map((notam, index) => {
-      let content = `=== NOTAM ${index + 1} ===\n`;
-      content += `Number: ${notam.number || 'N/A'}\n`;
-      content += `ICAO: ${notam.icao || icao}\n`;
-      content += `Type: ${notam.type || 'N/A'}\n`;
-      content += `Classification: ${notam.classification || 'N/A'}\n`;
-      content += `Valid From: ${notam.validFrom || 'N/A'}\n`;
-      content += `Valid To: ${notam.validTo || 'N/A'}\n`;
-      content += `Issued: ${notam.issued || 'N/A'}\n\n`;
-      
-      if (notam.qLine) {
-        content += `Q-Line:\n${notam.qLine}\n\n`;
+    if (tabMode === "ALL") {
+      // Show all NOTAMs grouped by ICAO
+      const icaos = Object.keys(notamDataByIcao).sort();
+      return icaos.map(icao => {
+        const notams = notamDataByIcao[icao] || [];
+        if (notams.length === 0) return '';
+        
+        let content = `\n${'='.repeat(60)}\n`;
+        content += `                    ${icao} NOTAMs (${notams.length})\n`;
+        content += `${'='.repeat(60)}\n\n`;
+        
+        notams.forEach((notam, index) => {
+          content += `--- NOTAM ${index + 1} ---\n`;
+          content += `Number: ${notam.number || 'N/A'}\n`;
+          content += `Type: ${notam.type || 'N/A'}\n`;
+          content += `Classification: ${notam.classification || 'N/A'}\n`;
+          content += `Valid From: ${notam.validFrom || 'N/A'}\n`;
+          content += `Valid To: ${notam.validTo || 'N/A'}\n`;
+          content += `Issued: ${notam.issued || 'N/A'}\n\n`;
+          
+          if (notam.qLine) {
+            content += `Q-Line:\n${notam.qLine}\n\n`;
+          }
+          
+          if (notam.summary) {
+            content += `Summary:\n${notam.summary}\n\n`;
+          }
+          
+          if (notam.body && notam.body !== notam.summary) {
+            content += `Full Text:\n${notam.body}\n\n`;
+          }
+          
+          content += `${'-'.repeat(40)}\n\n`;
+        });
+        
+        return content;
+      }).join('\n');
+    } else {
+      // Show NOTAMs for specific ICAO
+      const notams = notamDataByIcao[tabMode] || [];
+      if (notams.length === 0) {
+        return `No NOTAMs available for ${tabMode}`;
       }
-      
-      if (notam.summary) {
-        content += `Summary:\n${notam.summary}\n\n`;
-      }
-      
-      if (notam.body && notam.body !== notam.summary) {
-        content += `Full Text:\n${notam.body}\n\n`;
-      }
-      
-      content += `${'='.repeat(50)}\n\n`;
-      return content;
-    }).join('');
+
+      return notams.map((notam, index) => {
+        let content = `=== NOTAM ${index + 1} ===\n`;
+        content += `Number: ${notam.number || 'N/A'}\n`;
+        content += `ICAO: ${notam.icao || tabMode}\n`;
+        content += `Type: ${notam.type || 'N/A'}\n`;
+        content += `Classification: ${notam.classification || 'N/A'}\n`;
+        content += `Valid From: ${notam.validFrom || 'N/A'}\n`;
+        content += `Valid To: ${notam.validTo || 'N/A'}\n`;
+        content += `Issued: ${notam.issued || 'N/A'}\n\n`;
+        
+        if (notam.qLine) {
+          content += `Q-Line:\n${notam.qLine}\n\n`;
+        }
+        
+        if (notam.summary) {
+          content += `Summary:\n${notam.summary}\n\n`;
+        }
+        
+        if (notam.body && notam.body !== notam.summary) {
+          content += `Full Text:\n${notam.body}\n\n`;
+        }
+        
+        content += `${'='.repeat(50)}\n\n`;
+        return content;
+      }).join('');
+    }
+  };
+
+  const getTitle = () => {
+    if (tabMode === "ALL") {
+      const totalNotams = Object.values(notamDataByIcao).reduce((sum, notams) => 
+        sum + (Array.isArray(notams) ? notams.length : 0), 0
+      );
+      const icaoCount = Object.keys(notamDataByIcao).filter(icao => 
+        Array.isArray(notamDataByIcao[icao]) && notamDataByIcao[icao].length > 0
+      ).length;
+      return `Raw NOTAMs for All ICAOs (${icaoCount} ICAOs, ${totalNotams} NOTAMs)`;
+    } else {
+      const notams = notamDataByIcao[tabMode] || [];
+      return `Raw NOTAMs for ${tabMode} (${notams.length} NOTAMs)`;
+    }
   };
 
   return (
@@ -167,10 +227,7 @@ export const IcaoRawModal = ({ show, icao, notams, onClose }) => {
         }}>
           <div>
             <span style={{ fontWeight: 'bold', color: '#67e8f9', fontSize: '1.2rem' }}>
-              Raw NOTAMs for {icao}
-            </span>
-            <span style={{ color: '#94a3b8', fontSize: '0.9rem', marginLeft: '10px' }}>
-              ({notams?.length || 0} NOTAMs)
+              {getTitle()}
             </span>
           </div>
           <button 
