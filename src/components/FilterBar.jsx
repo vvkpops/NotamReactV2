@@ -11,9 +11,26 @@ const FilterBar = ({
   setKeywordFilter,
   cardScale,
   setCardScale,
-  onReloadAll 
+  onReloadAll,
+  onShowRaw,
+  tabMode,
+  notamDataByIcao
 }) => {
   const filterKeys = Object.keys(FILTER_LABELS);
+
+  const handleRawClick = () => {
+    onShowRaw(tabMode, notamDataByIcao);
+  };
+
+  const hasNotamData = () => {
+    if (tabMode === "ALL") {
+      return Object.keys(notamDataByIcao).some(icao => 
+        Array.isArray(notamDataByIcao[icao]) && notamDataByIcao[icao].length > 0
+      );
+    } else {
+      return Array.isArray(notamDataByIcao[tabMode]) && notamDataByIcao[tabMode].length > 0;
+    }
+  };
 
   return (
     <div className="glass p-4 mb-4">
@@ -58,6 +75,17 @@ const FilterBar = ({
             />
             <span className="card-scale-value">{cardScale.toFixed(1)}x</span>
           </div>
+
+          {/* RAW Button */}
+          <button
+            onClick={handleRawClick}
+            disabled={!hasNotamData()}
+            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-sm transition-colors"
+            title={tabMode === "ALL" ? "View raw NOTAMs for all ICAOs" : `View raw NOTAMs for ${tabMode}`}
+          >
+            <i className="fa fa-file-text mr-1"></i>
+            RAW
+          </button>
 
           {/* Reload Button */}
           <button
