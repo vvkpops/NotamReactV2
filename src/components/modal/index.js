@@ -13,7 +13,7 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
       width: '100%',
       height: '100%',
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      zIndex: 10000, // FIXED: Increased z-index
+      zIndex: 10000,
       justifyContent: 'center',
       alignItems: 'center'
     }}>
@@ -84,7 +84,131 @@ export const RawNotamModal = ({ show, title, content, onClose }) => {
   );
 };
 
-// ICAO Sets Modal Component (Fixed z-index and backdrop)
+// ICAO Raw NOTAMs Modal Component - NEW
+export const IcaoRawModal = ({ show, icao, notams, onClose }) => {
+  if (!show) return null;
+
+  const formatRawContent = () => {
+    if (!notams || notams.length === 0) {
+      return `No NOTAMs available for ${icao}`;
+    }
+
+    return notams.map((notam, index) => {
+      let content = `=== NOTAM ${index + 1} ===\n`;
+      content += `Number: ${notam.number || 'N/A'}\n`;
+      content += `ICAO: ${notam.icao || icao}\n`;
+      content += `Type: ${notam.type || 'N/A'}\n`;
+      content += `Classification: ${notam.classification || 'N/A'}\n`;
+      content += `Valid From: ${notam.validFrom || 'N/A'}\n`;
+      content += `Valid To: ${notam.validTo || 'N/A'}\n`;
+      content += `Issued: ${notam.issued || 'N/A'}\n\n`;
+      
+      if (notam.qLine) {
+        content += `Q-Line:\n${notam.qLine}\n\n`;
+      }
+      
+      if (notam.summary) {
+        content += `Summary:\n${notam.summary}\n\n`;
+      }
+      
+      if (notam.body && notam.body !== notam.summary) {
+        content += `Full Text:\n${notam.body}\n\n`;
+      }
+      
+      content += `${'='.repeat(50)}\n\n`;
+      return content;
+    }).join('');
+  };
+
+  return (
+    <div style={{
+      display: 'flex',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      zIndex: 10000,
+      justifyContent: 'center',
+      alignItems: 'center'
+    }}>
+      <div 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%'
+        }}
+        onClick={onClose}
+      ></div>
+      <div style={{
+        backgroundColor: '#1e293b',
+        borderRadius: '8px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)',
+        width: '90%',
+        maxWidth: '1000px',
+        maxHeight: '85%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden',
+        animation: 'modalOpen 0.3s',
+        zIndex: 10001
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px',
+          backgroundColor: '#172030',
+          borderBottom: '1px solid #334155'
+        }}>
+          <div>
+            <span style={{ fontWeight: 'bold', color: '#67e8f9', fontSize: '1.2rem' }}>
+              Raw NOTAMs for {icao}
+            </span>
+            <span style={{ color: '#94a3b8', fontSize: '0.9rem', marginLeft: '10px' }}>
+              ({notams?.length || 0} NOTAMs)
+            </span>
+          </div>
+          <button 
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#f87171',
+              cursor: 'pointer',
+              fontSize: '1.5rem',
+              lineHeight: 1
+            }}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+        <pre 
+          className="scrollbar"
+          style={{
+            padding: '16px',
+            overflowY: 'auto',
+            flexGrow: 1,
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            fontSize: '0.85rem',
+            color: '#d1d5db',
+            margin: 0,
+            lineHeight: '1.4'
+          }}
+        >
+          {formatRawContent()}
+        </pre>
+      </div>
+    </div>
+  );
+};
+
+// ICAO Sets Modal Component
 export const IcaoSetsModal = ({ 
   show, 
   onClose, 
@@ -204,7 +328,7 @@ export const IcaoSetsModal = ({
   );
 };
 
-// Save Set Modal Component (Fixed z-index)
+// Save Set Modal Component
 export const SaveSetModal = ({ show, onClose, onSave }) => {
   if (!show) return null;
 
@@ -293,6 +417,7 @@ export const SaveSetModal = ({ show, onClose, onSave }) => {
 // Export individual components
 export default {
   RawNotamModal,
+  IcaoRawModal,
   IcaoSetsModal,
   SaveSetModal
 };
