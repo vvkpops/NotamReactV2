@@ -16,8 +16,7 @@ const NotamCard = ({
   cardKey,
   expanded,
   cardScale,
-  onCardClick,
-  onShowRaw
+  onCardClick
 }) => {
   const type = getNotamType(notam);
   const headClass = getHeadClass(notam);
@@ -73,19 +72,6 @@ const NotamCard = ({
     if (needsToExpand) {
       onCardClick(cardKey, notam);
     }
-  };
-
-  const handleRawClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const title = `${notam.number || notam.icao || "NOTAM"} Raw`;
-    let rawContent = "";
-    if (notam.qLine) rawContent += notam.qLine + "\n";
-    if (notam.body) rawContent += notam.body;
-    else if (notam.summary) rawContent += notam.summary;
-    
-    onShowRaw(title, rawContent.trim());
   };
 
   const handleExpandClick = (e) => {
@@ -147,56 +133,30 @@ const NotamCard = ({
         flexDirection: 'column',
         position: 'relative'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-          <div className="notam-head" style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            color: '#fbbf24',
-            marginBottom: '0.5rem'
-          }}>
-            {notam.number || ""} 
-            <span style={{fontSize: '1rem', fontWeight: 'normal', color: '#67e8f9', marginLeft: '0.5rem'}}>
-              {notam.icao || ""}
-            </span>
-            {isNew && (
-              <span style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
-                fontSize: '0.7rem',
-                fontWeight: 'bold',
-                padding: '0.1rem 0.4rem',
-                borderRadius: '0.25rem',
-                marginLeft: '0.5rem',
-                animation: 'pulse 2s infinite'
-              }}>
-                NEW
-              </span>
-            )}
-          </div>
-          <a 
-            href="#" 
-            onClick={handleRawClick}
-            style={{
-              color: '#06b6d4',
-              textDecoration: 'none',
-              fontSize: '0.75rem',
+        <div className="notam-head" style={{
+          fontSize: '1.25rem',
+          fontWeight: 'bold',
+          color: '#fbbf24',
+          marginBottom: '0.5rem'
+        }}>
+          {notam.number || ""} 
+          <span style={{fontSize: '1rem', fontWeight: 'normal', color: '#67e8f9', marginLeft: '0.5rem'}}>
+            {notam.icao || ""}
+          </span>
+          {isNew && (
+            <span style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.3)',
+              color: '#fca5a5',
+              fontSize: '0.7rem',
               fontWeight: 'bold',
-              padding: '0.25rem 0.5rem',
-              border: '1px solid #06b6d4',
+              padding: '0.1rem 0.4rem',
               borderRadius: '0.25rem',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#06b6d4';
-              e.target.style.color = '#0f172a';
-            }}
-            onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'transparent';
-              e.target.style.color = '#06b6d4';
-            }}
-          >
-            RAW
-          </a>
+              marginLeft: '0.5rem',
+              animation: 'pulse 2s infinite'
+            }}>
+              NEW
+            </span>
+          )}
         </div>
         
         <div className="notam-meta" style={{
@@ -214,54 +174,22 @@ const NotamCard = ({
           </span>
         </div>
         
-        {expanded || !needsToExpand ? 
-          <div className="notam-full-text" style={{
+        {/* Only show summary content - no raw content duplication */}
+        <div 
+          className={expanded || !needsToExpand ? "notam-full-text" : "notam-summary"} 
+          style={{
             flex: 1,
             fontSize: '0.875rem',
             lineHeight: 1.4,
             color: '#e2e8f0',
-            overflowY: 'visible',
-            maxHeight: 'none'
-          }}>
-            {notam.summary ? (
-              <div dangerouslySetInnerHTML={{ __html: notam.summary.replace(/\n/g, '<br>') }} />
-            ) : ""}
-            {notam.body && (
-              <>
-                <hr style={{
-                  border: 0,
-                  height: '1px',
-                  background: 'rgba(148, 163, 184, 0.2)',
-                  margin: '12px 0'
-                }} />
-                <div style={{
-                  fontFamily: 'monospace',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: '0.8rem',
-                  color: '#cbd5e1',
-                  padding: '8px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.3)',
-                  borderRadius: '4px'
-                }} dangerouslySetInnerHTML={{ __html: notam.body.replace(/\n/g, '<br>') }} />
-              </>
-            )}
-          </div>
-          : 
-          <div 
-            className="notam-summary" 
-            style={{
-              flex: 1,
-              fontSize: '0.875rem',
-              lineHeight: 1.4,
-              color: '#e2e8f0',
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 6,
-              WebkitBoxOrient: 'vertical'
-            }}
-            dangerouslySetInnerHTML={{ __html: notam.summary ? notam.summary.replace(/\n/g, '<br>') : "" }} 
-          />
-        }
+            overflow: expanded || !needsToExpand ? 'visible' : 'hidden',
+            maxHeight: expanded || !needsToExpand ? 'none' : undefined,
+            display: expanded || !needsToExpand ? 'block' : '-webkit-box',
+            WebkitLineClamp: expanded || !needsToExpand ? 'none' : 6,
+            WebkitBoxOrient: expanded || !needsToExpand ? 'initial' : 'vertical'
+          }}
+          dangerouslySetInnerHTML={{ __html: notam.summary ? notam.summary.replace(/\n/g, '<br>') : "" }} 
+        />
         
         {needsToExpand && (
           <button 
