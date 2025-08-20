@@ -7,7 +7,8 @@ import {
   needsExpansion,
   isNotamCurrent,
   isNotamFuture,
-  getClassificationTitle
+  getClassificationTitle,
+  isNewNotam
 } from '../utils/notamUtils';
 
 const NotamCard = ({
@@ -15,8 +16,6 @@ const NotamCard = ({
   cardKey,
   expanded,
   cardScale,
-  isNew,
-  remainingTime,
   onCardClick,
   onShowRaw
 }) => {
@@ -24,8 +23,14 @@ const NotamCard = ({
   const headClass = getHeadClass(notam);
   const headTitle = getHeadTitle(notam);
   const runways = type === "rwy" ? extractRunways(notam.summary + " " + notam.body) : "";
-  const needsToExpand = needsExpansion(notam.summary);
+  
+  // VANILLA JS APPROACH - Pass cardScale to needsExpansion
+  const needsToExpand = needsExpansion(notam.summary, notam.body, cardScale);
+  
   const timeStatus = isNotamCurrent(notam) ? "Current" : isNotamFuture(notam) ? "Future" : "";
+  
+  // VANILLA JS APPROACH - Simple new NOTAM detection
+  const isNew = isNewNotam(notam);
 
   // Head color styles
   const headColorStyles = {
@@ -66,9 +71,6 @@ const NotamCard = ({
 
   const handleCardClick = () => {
     if (needsToExpand) {
-      onCardClick(cardKey, notam);
-    } else if (isNew) {
-      // Mark as viewed if it's a new NOTAM
       onCardClick(cardKey, notam);
     }
   };
@@ -167,7 +169,7 @@ const NotamCard = ({
                 marginLeft: '0.5rem',
                 animation: 'pulse 2s infinite'
               }}>
-                NEW {remainingTime > 0 && `(${remainingTime}s)`}
+                NEW
               </span>
             )}
           </div>
@@ -224,6 +226,25 @@ const NotamCard = ({
             {notam.summary ? (
               <div dangerouslySetInnerHTML={{ __html: notam.summary.replace(/\n/g, '<br>') }} />
             ) : ""}
+            {notam.body && (
+              <>
+                <hr style={{
+                  border: 0,
+                  height: '1px',
+                  background: 'rgba(148, 163, 184, 0.2)',
+                  margin: '12px 0'
+                }} />
+                <div style={{
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-wrap',
+                  fontSize: '0.8rem',
+                  color: '#cbd5e1',
+                  padding: '8px',
+                  backgroundColor: 'rgba(15, 23, 42, 0.3)',
+                  borderRadius: '4px'
+                }} dangerouslySetInnerHTML={{ __html: notam.body.replace(/\n/g, '<br>') }} />
+              </>
+            )}
           </div>
           : 
           <div 
