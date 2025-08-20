@@ -10,8 +10,7 @@ const NotificationSystem = ({
   setShowNotificationModal,
   setNotifications,
   setNotificationCount,
-  onNotificationClick,
-  onMarkAllRead
+  onNotificationClick
 }) => {
   const clearAllNotifications = () => {
     setNotifications([]);
@@ -42,13 +41,6 @@ const NotificationSystem = ({
               Notifications ({notificationCount})
             </h3>
             <div className="flex gap-2">
-              <button
-                onClick={onMarkAllRead}
-                className="text-xs px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded transition-colors"
-                disabled={notifications.length === 0}
-              >
-                Mark All as Read
-              </button>
               <button
                 onClick={clearAllNotifications}
                 className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
