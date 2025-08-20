@@ -88,3 +88,52 @@ const NotamGrid = ({
             </span>
           </h3>
         </div>
+      );
+    }
+    
+    const key = (notam.id || notam.number || notam.qLine || notam.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
+    const cardKey = `${notam.icao}-${key}-${index}`;
+    const expanded = expandedCardKey === cardKey;
+
+    return (
+      <NotamCard
+        key={cardKey}
+        notam={notam}
+        cardKey={cardKey}
+        expanded={expanded}
+        cardScale={cardScale}
+        onCardClick={onCardClick}
+        onShowRaw={onShowRaw}
+      />
+    );
+  };
+
+  const filteredNotams = getFilteredNotams();
+
+  return (
+    <div id="result">
+      {filteredNotams.length > 0 ? (
+        <div 
+          className="notam-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '1rem',
+            marginTop: '1rem'
+          }}
+        >
+          {filteredNotams.map((notam, index) => renderNotamCard(notam, index))}
+        </div>
+      ) : (
+        <div className="glass p-8 rounded-lg text-center text-base text-slate-400">
+          {Object.keys(notamDataByIcao).length === 0 
+            ? "Add some ICAO codes above to get started"
+            : "No NOTAMs found matching current filters"
+          }
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NotamGrid;
