@@ -102,14 +102,45 @@ body {
 }
 
 /* Head color classes */
-.head-rwy { background-color: rgba(220, 38, 38, 0.4); color: #fca5a5; }
-.head-twy { background-color: rgba(245, 158, 11, 0.4); color: #fcd34d; }
-.head-rsc { background-color: rgba(16, 185, 129, 0.4); color: #6ee7b7; }
-.head-crfi { background-color: rgba(139, 92, 246, 0.4); color: #c4b5fd; }
-.head-ils { background-color: rgba(59, 130, 246, 0.4); color: #93c5fd; }
-.head-fuel { background-color: rgba(236, 72, 153, 0.4); color: #f9a8d4; }
-.head-cancelled { background-color: rgba(107, 114, 128, 0.4); color: #d1d5db; }
-.head-other { background-color: rgba(75, 85, 99, 0.4); color: #d1d5db; }
+.head-rwy { 
+  background-color: rgba(220, 38, 38, 0.4); 
+  color: #fca5a5; 
+}
+
+.head-twy { 
+  background-color: rgba(245, 158, 11, 0.4); 
+  color: #fcd34d; 
+}
+
+.head-rsc { 
+  background-color: rgba(16, 185, 129, 0.4); 
+  color: #6ee7b7; 
+}
+
+.head-crfi { 
+  background-color: rgba(139, 92, 246, 0.4); 
+  color: #c4b5fd; 
+}
+
+.head-ils { 
+  background-color: rgba(59, 130, 246, 0.4); 
+  color: #93c5fd; 
+}
+
+.head-fuel { 
+  background-color: rgba(236, 72, 153, 0.4); 
+  color: #f9a8d4; 
+}
+
+.head-cancelled { 
+  background-color: rgba(107, 114, 128, 0.4); 
+  color: #d1d5db; 
+}
+
+.head-other { 
+  background-color: rgba(75, 85, 99, 0.4); 
+  color: #d1d5db; 
+}
 
 .notam-card-content {
   padding: 0.75rem;
@@ -217,18 +248,19 @@ body {
   color: var(--error-color);
 }
 
-/* ICAO Tabs */
+/* Enhanced ICAO Tabs with Notification Support */
 .icao-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
   overflow-x: auto;
-  padding-bottom: 0.5rem;
+  padding: 0.5rem 0;
   align-items: center;
 }
 
 .icao-tab {
+  position: relative;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   cursor: pointer;
@@ -253,9 +285,87 @@ body {
   color: var(--primary-color);
 }
 
-.flashing-tab {
-  animation: flash 2s infinite;
+/* Subtle glow effect for tabs with new NOTAMs */
+.icao-tab.has-new-notams {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+.icao-tab.has-new-notams:hover {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+/* NEW NOTAM NOTIFICATION STYLES */
+
+/* New NOTAM notification dot */
+.notam-notification-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(45deg, #ef4444, #dc2626);
+  border-radius: 50%;
+  animation: notificationPulse 2s infinite;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  border: 2px solid rgba(30, 41, 59, 0.8);
+}
+
+.notam-notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  background: linear-gradient(45deg, #dc2626, #991b1b);
+  color: white;
+  font-size: 0.65rem;
   font-weight: bold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+  border: 2px solid rgba(30, 41, 59, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: notificationPulse 2s infinite;
+}
+
+/* Highlighted NOTAM card styles */
+.highlighted-notam {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 2px solid rgba(239, 68, 68, 0.6) !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+  animation: highlightPulse 3s ease-in-out infinite;
+}
+
+.highlighted-notam .card-head {
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.highlighted-notam .notam-card-content {
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+/* New NOTAM indicator badge */
+.new-notam-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(45deg, #ef4444, #dc2626);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  animation: pulse 2s infinite;
+}
+
+/* Subtle highlight border for new NOTAMs that aren't actively highlighted */
+.new-notam-subtle {
+  border-left: 4px solid rgba(239, 68, 68, 0.6);
 }
 
 /* Filter Chips */
@@ -290,17 +400,60 @@ body {
   border-color: currentColor;
 }
 
-.filter-chip-rwy.active { background: rgba(220, 38, 38, 0.3); color: #fca5a5; }
-.filter-chip-twy.active { background: rgba(245, 158, 11, 0.3); color: #fcd34d; }
-.filter-chip-rsc.active { background: rgba(16, 185, 129, 0.3); color: #6ee7b7; }
-.filter-chip-crfi.active { background: rgba(139, 92, 246, 0.3); color: #c4b5fd; }
-.filter-chip-ils.active { background: rgba(59, 130, 246, 0.3); color: #93c5fd; }
-.filter-chip-fuel.active { background: rgba(236, 72, 153, 0.3); color: #f9a8d4; }
-.filter-chip-other.active { background: rgba(75, 85, 99, 0.3); color: #d1d5db; }
-.filter-chip-cancelled.active { background: rgba(107, 114, 128, 0.3); color: #d1d5db; }
-.filter-chip-dom.active { background: rgba(168, 85, 247, 0.3); color: #d8b4fe; }
-.filter-chip-current.active { background: rgba(34, 197, 94, 0.3); color: #86efac; }
-.filter-chip-future.active { background: rgba(251, 191, 36, 0.3); color: #fde68a; }
+.filter-chip-rwy.active { 
+  background: rgba(220, 38, 38, 0.3); 
+  color: #fca5a5; 
+}
+
+.filter-chip-twy.active { 
+  background: rgba(245, 158, 11, 0.3); 
+  color: #fcd34d; 
+}
+
+.filter-chip-rsc.active { 
+  background: rgba(16, 185, 129, 0.3); 
+  color: #6ee7b7; 
+}
+
+.filter-chip-crfi.active { 
+  background: rgba(139, 92, 246, 0.3); 
+  color: #c4b5fd; 
+}
+
+.filter-chip-ils.active { 
+  background: rgba(59, 130, 246, 0.3); 
+  color: #93c5fd; 
+}
+
+.filter-chip-fuel.active { 
+  background: rgba(236, 72, 153, 0.3); 
+  color: #f9a8d4; 
+}
+
+.filter-chip-other.active { 
+  background: rgba(75, 85, 99, 0.3); 
+  color: #d1d5db; 
+}
+
+.filter-chip-cancelled.active { 
+  background: rgba(107, 114, 128, 0.3); 
+  color: #d1d5db; 
+}
+
+.filter-chip-dom.active { 
+  background: rgba(168, 85, 247, 0.3); 
+  color: #d8b4fe; 
+}
+
+.filter-chip-current.active { 
+  background: rgba(34, 197, 94, 0.3); 
+  color: #86efac; 
+}
+
+.filter-chip-future.active { 
+  background: rgba(251, 191, 36, 0.3); 
+  color: #fde68a; 
+}
 
 /* Card Scale Controls */
 .card-scale-wrap {
@@ -553,6 +706,38 @@ body {
   animation: slideInUp 0.3s ease-out;
 }
 
+/* NOTIFICATION ANIMATIONS */
+@keyframes notificationPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes highlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.6), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@keyframes fadeInHighlight {
+  0% {
+    background-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.8);
+  }
+  100% {
+    background-color: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+}
+
 @keyframes slideInUp {
   from {
     opacity: 0;
@@ -594,6 +779,30 @@ body {
   }
 }
 
+/* Highlight fade-out effect */
+.highlight-fade-out {
+  animation: fadeOutHighlight 1s ease-out forwards;
+}
+
+@keyframes fadeOutHighlight {
+  0% {
+    background-color: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.6);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  100% {
+    background-color: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Focus Styles for Accessibility */
 button:focus,
 input:focus,
@@ -632,12 +841,6 @@ input:focus,
   border-radius: 50%;
   border-top-color: transparent;
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Utility Classes */
@@ -708,6 +911,29 @@ input:focus,
   .card-scale-slider {
     width: 80px;
   }
+
+  /* Responsive notification indicators */
+  .notam-notification-dot {
+    width: 10px;
+    height: 10px;
+    top: -3px;
+    right: -3px;
+  }
+  
+  .notam-notification-badge {
+    min-width: 16px;
+    height: 16px;
+    font-size: 0.6rem;
+    top: -6px;
+    right: -6px;
+  }
+  
+  .new-notam-indicator {
+    top: 6px;
+    right: 6px;
+    font-size: 0.6rem;
+    padding: 1px 4px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -763,6 +989,15 @@ input:focus,
   .notam-animate {
     animation: none;
   }
+  
+  .highlighted-notam {
+    animation: none;
+  }
+  
+  .notam-notification-dot,
+  .notam-notification-badge {
+    animation: none;
+  }
 }
 
 /* Print Styles */
@@ -772,7 +1007,10 @@ input:focus,
   .back-to-top-btn,
   .card-expand-btn,
   .filter-chips,
-  .card-scale-wrap {
+  .card-scale-wrap,
+  .notam-notification-dot,
+  .notam-notification-badge,
+  .new-notam-indicator {
     display: none !important;
   }
   
