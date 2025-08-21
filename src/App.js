@@ -211,14 +211,11 @@ function App() {
     );
   };
 
+  // FIXED: Simplified handleNewSetClick - just open the modal to save
   const handleNewSetClick = () => {
     if (icaoSet.length === 0) return;
-    if (!isCurrentSetSaved()) {
-      setShowSaveSetModal(true);
-      setPendingNewSetAction(true);
-    } else {
-      clearCurrentSet();
-    }
+    // Simply show the sets modal to save the current set
+    setShowIcaoSetsModal(true);
   };
 
   const clearCurrentSet = () => {
@@ -421,6 +418,7 @@ function App() {
         />
         <IcaoSetsBar
           icaoSets={icaoSets}
+          icaoSet={icaoSet}
           onShowSetsModal={() => setShowIcaoSetsModal(true)}
           onNewSetClick={handleNewSetClick}
           onLoadSet={loadIcaoSet}
