@@ -1,3 +1,4 @@
+// src/components/NotamGrid.jsx
 import React from 'react';
 import NotamCard from './NotamCard';
 import { 
@@ -12,7 +13,8 @@ const NotamGrid = ({
   keywordFilter,
   expandedCardKey,
   cardScale,
-  onCardClick
+  onCardClick,
+  isNotamHighlighted
 }) => {
   
   const getFilteredNotams = () => {
@@ -32,7 +34,6 @@ const NotamGrid = ({
       sortedIcaos.forEach(icao => {
         const notamsForIcao = [...icaoGroups[icao]];
         
-        // VANILLA JS APPROACH - Simple filtering without complex new NOTAM logic
         const filteredNotamsForIcao = applyNotamFilters(
           notamsForIcao, 
           filters, 
@@ -93,6 +94,9 @@ const NotamGrid = ({
     const key = (notam.id || notam.number || notam.qLine || notam.summary || "").replace(/[^a-zA-Z0-9_-]/g,'');
     const cardKey = `${notam.icao}-${key}-${index}`;
     const expanded = expandedCardKey === cardKey;
+    
+    // Check if this NOTAM should be highlighted
+    const isHighlighted = isNotamHighlighted ? isNotamHighlighted(notam.icao, notam) : false;
 
     return (
       <NotamCard
@@ -102,6 +106,7 @@ const NotamGrid = ({
         expanded={expanded}
         cardScale={cardScale}
         onCardClick={onCardClick}
+        isHighlighted={isHighlighted}
       />
     );
   };
