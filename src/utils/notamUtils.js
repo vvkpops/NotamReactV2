@@ -40,7 +40,7 @@ export const getNotamFlags = (notam) => {
     isILS: /\bILS\b/.test(s) && !/\bCLOSED|CLSD\b/.test(s),
     isFuel: /\bFUEL\b/.test(s),
     isCancelled: notam.type === "C" || /\b(CANCELLED|CNL)\b/.test(s),
-    isDom: /\bDOM\b/.test(s)
+    isDom: typeof notam.classification === 'string' && notam.classification.toLowerCase().includes('domestic')
   };
 };
 
