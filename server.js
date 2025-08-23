@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -105,6 +106,101 @@ app.get('/health', (req, res) => {
   });
 });
 
+// NAV CANADA CFPS helper - server-side direct call (no CORS proxy needed)
+async function fetchNavCanadaNotamsServerSide(icao) {
+  const upperIcao = (icao || '').toUpperCase();
+  if (!/^[A-Z]{4}$/.test(upperIcao)) {
+    return [];
+  }
+
+  const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${upperIcao}&alpha=notam`;
+  try {
+    const resp = await axios.get(navUrl, {
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'NOTAM-Dashboard-V2/Server',
+        'Accept': 'application/json'
+      },
+      validateStatus: (s) => s < 500
+    });
+
+    if (resp.status >= 400) {
+      console.warn(`[NAVCAN] HTTP ${resp.status} for ${upperIcao}`);
+      return [];
+    }
+
+    const raw = resp.data;
+    if (!raw) {
+      console.log(`[NAVCAN] Empty payload for ${upperIcao}`);
+      return [];
+    }
+
+    // Try common shapes
+    let items = [];
+    if (Array.isArray(raw)) {
+      items = raw;
+    } else if (Array.isArray(raw.alpha)) {
+      items = raw.alpha;
+    } else if (Array.isArray(raw.notams)) {
+      items = raw.notams;
+    } else if (Array.isArray(raw.data)) {
+      items = raw.data;
+    } else if (raw.report) {
+      if (Array.isArray(raw.report.notams)) items = raw.report.notams;
+      else if (Array.isArray(raw.report.alpha)) items = raw.report.alpha;
+      else items = [raw.report];
+    } else {
+      // search for first object-valued array
+      for (const key of Object.keys(raw)) {
+        if (Array.isArray(raw[key]) && raw[key].length && typeof raw[key][0] === 'object') {
+          items = raw[key];
+          break;
+        }
+      }
+    }
+
+    if (!items || items.length === 0) {
+      console.log(`[NAVCAN] No notam items parsed for ${upperIcao}`);
+      return [];
+    }
+
+    // Normalize items to the same schema the FAA branch uses
+    const mapped = items.map((item, idx) => {
+      const number = item.id || item.notamId || item.number || '';
+      const summary = item.raw || item.text || item.message || item.summary || item.simpleText || '';
+      const body = item.text || item.fullText || item.message || summary || '';
+      const validFrom = item.start || item.validFrom || item.issued || '';
+      const validTo = item.end || item.validTo || '';
+      const qLine = item.qLine || '';
+      const issued = item.issued || item.start || '';
+      const location = item.site || item.icao || upperIcao;
+
+      return {
+        id: `${upperIcao}-${number || idx}`,
+        number: number || '',
+        type: item.type || '',
+        classification: item.classification || '',
+        icao: upperIcao,
+        location,
+        validFrom,
+        validTo,
+        summary,
+        body,
+        qLine,
+        issued,
+        source: 'NAVCAN',
+        rawOriginal: item,
+        processedAt: new Date().toISOString()
+      };
+    });
+
+    return mapped;
+  } catch (err) {
+    console.error(`[NAVCAN] Error fetching ${upperIcao}:`, err.message || err);
+    return [];
+  }
+}
+
 // Status endpoint with more detailed information
 app.get('/api/status', (req, res) => {
   res.status(200).json({
@@ -130,7 +226,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// NOTAM API endpoint
+// NOTAM API endpoint with FAA primary and NAV CANADA server-side fallback
 app.get('/api/notams', async (req, res) => {
   const startTime = Date.now();
   const icao = (req.query.icao || '').toUpperCase().trim();
@@ -187,12 +283,43 @@ app.get('/api/notams', async (req, res) => {
     // Verify response structure
     if (!notamRes.data) {
       console.error(`[${new Date().toISOString()}] Empty response data for ${icao}`);
+      // Try NAVCAN fallback for Canadian ICAOs
+      if (icao.startsWith('C')) {
+        const navNotams = await fetchNavCanadaNotamsServerSide(icao);
+        return res.json({
+          data: navNotams,
+          metadata: {
+            icao,
+            total: navNotams.length,
+            processingTime: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+            source: 'NAVCAN'
+          }
+        });
+      }
       return res.status(500).json({ error: "Empty response from FAA API" });
     }
     
+    // If FAA returned items array or equivalent
     if (!notamRes.data.items) {
-      console.error(`[${new Date().toISOString()}] Missing items array for ${icao}`, 
+      console.warn(`[${new Date().toISOString()}] FAA payload missing items array for ${icao}`, 
         JSON.stringify(notamRes.data).substring(0, 200));
+      // If FAA returned a valid but empty payload, consider NAVCAN fallback for Canadian ICAOs
+      if (icao.startsWith('C')) {
+        const navNotams = await fetchNavCanadaNotamsServerSide(icao);
+        if (navNotams && navNotams.length > 0) {
+          return res.json({
+            data: navNotams,
+            metadata: {
+              icao,
+              total: navNotams.length,
+              processingTime: Date.now() - startTime,
+              timestamp: new Date().toISOString(),
+              source: 'NAVCAN'
+            }
+          });
+        }
+      }
       return res.status(500).json({ error: "Unexpected response format from FAA API" });
     }
 
@@ -250,6 +377,28 @@ app.get('/api/notams', async (req, res) => {
         return true; // Keep if date parsing fails
       }
     });
+
+    // If FAA returned zero valid notams AND ICAO is Canadian, attempt NAV CANADA fallback
+    if ((validNotams.length === 0 || parsed.length === 0) && icao.startsWith('C')) {
+      console.log(`[${new Date().toISOString()}] FAA returned zero NOTAMs for ${icao}, trying NAV CANADA fallback`);
+      const navNotams = await fetchNavCanadaNotamsServerSide(icao);
+      if (navNotams && navNotams.length > 0) {
+        const processingTime = Date.now() - startTime;
+        console.log(`[${new Date().toISOString()}] Returning ${navNotams.length} NAVCAN NOTAMs for ${icao} (${processingTime}ms)`);
+        return res.json({
+          data: navNotams,
+          metadata: {
+            icao,
+            total: navNotams.length,
+            processingTime,
+            timestamp: new Date().toISOString(),
+            source: 'NAVCAN'
+          }
+        });
+      }
+      console.log(`[${new Date().toISOString()}] NAV CANADA fallback returned no results for ${icao}`);
+      // Continue to return FAA empty payload below (consistent behaviour)
+    }
 
     // Sort by dispatcher priority
     validNotams.sort((a, b) => {
