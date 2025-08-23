@@ -234,20 +234,19 @@ function App() {
     let countdownTimer;
     let countdown = 300; // 5 minutes in seconds
     
-    const performAutoRefresh = async () => {
-      console.log('Starting auto-refresh for', icaoSet.length, 'ICAOs');
-      
-      // Refresh all loaded ICAOs
-      for (const icao of icaoSet) {
-        if (loadedIcaosSet.has(icao)) {
-          try {
-            await handleFetchNotams(icao, true);
-          } catch (error) {
-            console.error(`Auto-refresh failed for ${icao}:`, error);
-          }
-        }
-      }
-    };
+    const performAutoRefresh = () => {
+  // Only add ICAOs that are loaded, not currently loading, and not already queued
+  const refreshIcaos = icaoSet.filter(icao =>
+    loadedIcaosSet.has(icao) &&
+    !loadingIcaosSet.has(icao) &&
+    !icaoQueue.includes(icao)
+  );
+  // Add to batching queue
+  if (refreshIcaos.length > 0) {
+    setIcaoQueue(prev => [...prev, ...refreshIcaos]);
+    startBatching();
+  }
+};
     
     const updateCountdown = () => {
       setAutoRefreshCountdown(countdown);
