@@ -52,11 +52,9 @@ app.use((req, res, next) => {
 let CLIENT_ID, CLIENT_SECRET;
 
 try {
-  // First, try environment variables (Railway preferred method)
   CLIENT_ID = process.env.FAA_CLIENT_ID;
   CLIENT_SECRET = process.env.FAA_CLIENT_SECRET;
   
-  // If not in environment variables, try config file (fallback)
   if (!CLIENT_ID || !CLIENT_SECRET) {
     console.log("⚠️  Credentials not found in environment variables, trying config.json");
     
@@ -106,7 +104,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// NAV CANADA CFPS helper - server-side direct call (no CORS proxy needed)
+// ENHANCED: NAV CANADA CFPS helper with proper parsing
 async function fetchNavCanadaNotamsServerSide(icao) {
   const upperIcao = (icao || '').toUpperCase();
   if (!/^[A-Z]{4}$/.test(upperIcao)) {
@@ -115,6 +113,8 @@ async function fetchNavCanadaNotamsServerSide(icao) {
 
   const navUrl = `https://plan.navcanada.ca/weather/api/alpha/?site=${upperIcao}&alpha=notam`;
   try {
+    console.log(`[NAVCAN] Fetching ${upperIcao} from: ${navUrl}`);
+    
     const resp = await axios.get(navUrl, {
       timeout: 15000,
       headers: {
@@ -129,79 +129,212 @@ async function fetchNavCanadaNotamsServerSide(icao) {
       return [];
     }
 
-    const raw = resp.data;
-    if (!raw) {
+    const rawData = resp.data;
+    if (!rawData) {
       console.log(`[NAVCAN] Empty payload for ${upperIcao}`);
       return [];
     }
 
-    // Try common shapes
-    let items = [];
-    if (Array.isArray(raw)) {
-      items = raw;
-    } else if (Array.isArray(raw.alpha)) {
-      items = raw.alpha;
-    } else if (Array.isArray(raw.notams)) {
-      items = raw.notams;
-    } else if (Array.isArray(raw.data)) {
-      items = raw.data;
-    } else if (raw.report) {
-      if (Array.isArray(raw.report.notams)) items = raw.report.notams;
-      else if (Array.isArray(raw.report.alpha)) items = raw.report.alpha;
-      else items = [raw.report];
-    } else {
-      // search for first object-valued array
-      for (const key of Object.keys(raw)) {
-        if (Array.isArray(raw[key]) && raw[key].length && typeof raw[key][0] === 'object') {
-          items = raw[key];
-          break;
-        }
-      }
-    }
+    // Use the new parsing logic
+    return parseCFPSResponse(upperIcao, rawData);
 
-    if (!items || items.length === 0) {
-      console.log(`[NAVCAN] No notam items parsed for ${upperIcao}`);
-      return [];
-    }
-
-    // Normalize items to the same schema the FAA branch uses
-    const mapped = items.map((item, idx) => {
-      const number = item.id || item.notamId || item.number || '';
-      const summary = item.raw || item.text || item.message || item.summary || item.simpleText || '';
-      const body = item.text || item.fullText || item.message || summary || '';
-      const validFrom = item.start || item.validFrom || item.issued || '';
-      const validTo = item.end || item.validTo || '';
-      const qLine = item.qLine || '';
-      const issued = item.issued || item.start || '';
-      const location = item.site || item.icao || upperIcao;
-
-      return {
-        id: `${upperIcao}-${number || idx}`,
-        number: number || '',
-        type: item.type || '',
-        classification: item.classification || '',
-        icao: upperIcao,
-        location,
-        validFrom,
-        validTo,
-        summary,
-        body,
-        qLine,
-        issued,
-        source: 'NAVCAN',
-        rawOriginal: item,
-        processedAt: new Date().toISOString()
-      };
-    });
-
-    return mapped;
   } catch (err) {
     console.error(`[NAVCAN] Error fetching ${upperIcao}:`, err.message || err);
     return [];
   }
 }
 
-// Status endpoint with more detailed information
+// CFPS Parser Functions (extracted from utility)
+function parseCFPSResponse(icao, rawData) {
+  if (!rawData || typeof rawData !== 'object') {
+    console.log(`[CFPS] Empty or invalid payload for ${icao}`);
+    return [];
+  }
+
+  const rawItems = extractCFPSItems(rawData, icao);
+  
+  if (!rawItems || rawItems.length === 0) {
+    console.log(`[CFPS] No NOTAM items found for ${icao}`);
+    return [];
+  }
+
+  const normalizedNotams = rawItems.map((item, index) => {
+    return normalizeCFPSNotam(item, icao, index);
+  }).filter(Boolean);
+
+  console.log(`[CFPS] Successfully parsed ${normalizedNotams.length} NOTAMs for ${icao}`);
+  return normalizedNotams;
+}
+
+function extractCFPSItems(rawData, icao) {
+  let items = [];
+
+  if (Array.isArray(rawData)) {
+    items = rawData;
+  } else if (Array.isArray(rawData.alpha)) {
+    items = rawData.alpha;
+  } else if (Array.isArray(rawData.notams)) {
+    items = rawData.notams;
+  } else if (Array.isArray(rawData.data)) {
+    items = rawData.data;
+  } else if (rawData.report) {
+    if (Array.isArray(rawData.report.notams)) {
+      items = rawData.report.notams;
+    } else if (Array.isArray(rawData.report.alpha)) {
+      items = rawData.report.alpha;
+    } else if (typeof rawData.report === 'object') {
+      items = [rawData.report];
+    }
+  } else if (rawData[icao]) {
+    const icaoData = rawData[icao];
+    if (Array.isArray(icaoData)) {
+      items = icaoData;
+    } else if (Array.isArray(icaoData.notams)) {
+      items = icaoData.notams;
+    }
+  } else {
+    // Look for any array of objects that might contain NOTAMs
+    const keys = Object.keys(rawData);
+    for (const key of keys) {
+      if (Array.isArray(rawData[key]) && rawData[key].length > 0) {
+        const firstItem = rawData[key][0];
+        if (typeof firstItem === 'object' && firstItem !== null) {
+          if (hasNotamCharacteristics(firstItem)) {
+            items = rawData[key];
+            console.log(`[CFPS] Found NOTAM data in key: ${key}`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return items;
+}
+
+function hasNotamCharacteristics(obj) {
+  const notamFields = ['id', 'notamId', 'number', 'text', 'raw', 'message', 'summary', 'start', 'end', 'issued', 'site', 'icao'];
+  return notamFields.some(field => obj.hasOwnProperty(field));
+}
+
+function normalizeCFPSNotam(item, icao, index) {
+  try {
+    const number = item.id || item.notamId || item.number || '';
+    const id = `${icao}-${number || index}`;
+    
+    // Extract and clean content
+    const rawText = item.raw || item.text || item.message || item.summary || '';
+    const summary = cleanNotamText(item.summary || item.simpleText || rawText);
+    const body = cleanNotamText(item.fullText || item.text || rawText);
+    
+    // Extract dates
+    const validFrom = normalizeDateString(item.start || item.validFrom || item.issued || '');
+    const validTo = normalizeDateString(item.end || item.validTo || '');
+    const issued = normalizeDateString(item.issued || item.start || '');
+    
+    // Determine classification
+    let classification = 'AO'; // Default to Other
+    if (item.classification) {
+      classification = normalizeClassification(item.classification);
+    } else {
+      // Derive from content
+      const upperSummary = summary.toUpperCase();
+      if (upperSummary.includes('RUNWAY') || upperSummary.includes('RWY')) classification = 'RW';
+      else if (upperSummary.includes('TAXIWAY') || upperSummary.includes('TWY')) classification = 'TW';
+      else if (upperSummary.includes('ILS') || upperSummary.includes('INSTRUMENT')) classification = 'AD';
+      else if (upperSummary.includes('FUEL')) classification = 'SVC';
+      else if (upperSummary.includes('DOMESTIC')) classification = 'DOM';
+    }
+
+    return {
+      id,
+      number: number || '',
+      type: item.type || 'A',
+      classification,
+      icao: icao.toUpperCase(),
+      location: item.site || item.icao || icao.toUpperCase(),
+      validFrom,
+      validTo,
+      summary,
+      body: body !== summary ? body : summary,
+      qLine: item.qLine || extractQLineFromText(rawText) || '',
+      issued,
+      source: 'NAVCAN',
+      rawOriginal: item,
+      processedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error(`[CFPS] Error normalizing NOTAM item ${index}:`, error);
+    return null;
+  }
+}
+
+function cleanNotamText(text) {
+  if (!text || typeof text !== 'string') return '';
+  
+  return text
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim();
+}
+
+function normalizeDateString(dateStr) {
+  if (!dateStr) return '';
+  
+  try {
+    let normalizedDate = dateStr.toString().trim();
+    
+    if (/^\d{4}-\d{2}-\d{2}/.test(normalizedDate)) {
+      const date = new Date(normalizedDate);
+      return isNaN(date) ? '' : date.toISOString();
+    }
+    
+    if (/^\d{10}$/.test(normalizedDate)) {
+      const year = 2000 + parseInt(normalizedDate.substr(0, 2));
+      const month = parseInt(normalizedDate.substr(2, 2)) - 1;
+      const day = parseInt(normalizedDate.substr(4, 2));
+      const hour = parseInt(normalizedDate.substr(6, 2));
+      const minute = parseInt(normalizedDate.substr(8, 2));
+      
+      const date = new Date(year, month, day, hour, minute);
+      return isNaN(date) ? '' : date.toISOString();
+    }
+    
+    const date = new Date(normalizedDate);
+    return isNaN(date) ? '' : date.toISOString();
+    
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeClassification(classification) {
+  if (!classification) return 'AO';
+  
+  const code = classification.toString().trim().toUpperCase();
+  const classificationMap = {
+    'RUNWAY': 'RW',
+    'TAXIWAY': 'TW', 
+    'INSTRUMENT': 'AD',
+    'NAVIGATION': 'AD',
+    'COMMUNICATION': 'AC',
+    'SERVICE': 'SVC',
+    'DOMESTIC': 'DOM',
+    'INTERNATIONAL': 'INTL',
+    'AERODROME': 'AA'
+  };
+  
+  return classificationMap[code] || code.substr(0, 3);
+}
+
+function extractQLineFromText(text) {
+  if (!text) return '';
+  const qLineMatch = text.match(/Q\)[^\r\n]+/);
+  return qLineMatch ? qLineMatch[0] : '';
+}
+
+// Status endpoint
 app.get('/api/status', (req, res) => {
   res.status(200).json({
     service: 'NOTAM Dashboard V2',
@@ -226,14 +359,13 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// NOTAM API endpoint with FAA primary and NAV CANADA server-side fallback
+// ENHANCED: NOTAM API endpoint with improved CFPS fallback
 app.get('/api/notams', async (req, res) => {
   const startTime = Date.now();
   const icao = (req.query.icao || '').toUpperCase().trim();
   
   console.log(`[${new Date().toISOString()}] NOTAM request for ICAO: ${icao}`);
   
-  // Validate ICAO code
   if (!icao || icao.length !== 4 || !/^[A-Z]{4}$/.test(icao)) {
     console.log(`[${new Date().toISOString()}] Invalid ICAO: ${icao}`);
     return res.status(400).json({ 
@@ -255,12 +387,11 @@ app.get('/api/notams', async (req, res) => {
         'Accept': 'application/json'
       },
       timeout: 15000,
-      validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+      validateStatus: (status) => status < 500
     });
 
     console.log(`[${new Date().toISOString()}] FAA API response status: ${notamRes.status}`);
     
-    // Handle rate limiting
     if (notamRes.status === 429) {
       console.log(`[${new Date().toISOString()}] Rate limited for ${icao}`);
       return res.status(429).json({ 
@@ -270,42 +401,11 @@ app.get('/api/notams', async (req, res) => {
       });
     }
     
-    // Handle other client errors
     if (notamRes.status >= 400) {
       console.log(`[${new Date().toISOString()}] FAA API error ${notamRes.status} for ${icao}`);
-      return res.status(notamRes.status).json({ 
-        error: "FAA API error",
-        status: notamRes.status,
-        message: notamRes.data?.message || "Error from FAA API"
-      });
-    }
-
-    // Verify response structure
-    if (!notamRes.data) {
-      console.error(`[${new Date().toISOString()}] Empty response data for ${icao}`);
-      // Try NAVCAN fallback for Canadian ICAOs
+      // Try NAVCAN fallback for Canadian ICAOs immediately on FAA errors
       if (icao.startsWith('C')) {
-        const navNotams = await fetchNavCanadaNotamsServerSide(icao);
-        return res.json({
-          data: navNotams,
-          metadata: {
-            icao,
-            total: navNotams.length,
-            processingTime: Date.now() - startTime,
-            timestamp: new Date().toISOString(),
-            source: 'NAVCAN'
-          }
-        });
-      }
-      return res.status(500).json({ error: "Empty response from FAA API" });
-    }
-    
-    // If FAA returned items array or equivalent
-    if (!notamRes.data.items) {
-      console.warn(`[${new Date().toISOString()}] FAA payload missing items array for ${icao}`, 
-        JSON.stringify(notamRes.data).substring(0, 200));
-      // If FAA returned a valid but empty payload, consider NAVCAN fallback for Canadian ICAOs
-      if (icao.startsWith('C')) {
+        console.log(`[${new Date().toISOString()}] Trying NAV CANADA fallback after FAA error for ${icao}`);
         const navNotams = await fetchNavCanadaNotamsServerSide(icao);
         if (navNotams && navNotams.length > 0) {
           return res.json({
@@ -315,7 +415,34 @@ app.get('/api/notams', async (req, res) => {
               total: navNotams.length,
               processingTime: Date.now() - startTime,
               timestamp: new Date().toISOString(),
-              source: 'NAVCAN'
+              source: 'NAVCAN (FAA fallback)'
+            }
+          });
+        }
+      }
+      return res.status(notamRes.status).json({ 
+        error: "FAA API error",
+        status: notamRes.status,
+        message: notamRes.data?.message || "Error from FAA API"
+      });
+    }
+
+    if (!notamRes.data || !notamRes.data.items) {
+      console.warn(`[${new Date().toISOString()}] FAA payload missing data/items for ${icao}`);
+      
+      // Try NAVCAN fallback for Canadian ICAOs
+      if (icao.startsWith('C')) {
+        console.log(`[${new Date().toISOString()}] Trying NAV CANADA fallback for ${icao}`);
+        const navNotams = await fetchNavCanadaNotamsServerSide(icao);
+        if (navNotams && navNotams.length > 0) {
+          return res.json({
+            data: navNotams,
+            metadata: {
+              icao,
+              total: navNotams.length,
+              processingTime: Date.now() - startTime,
+              timestamp: new Date().toISOString(),
+              source: 'NAVCAN (FAA empty)'
             }
           });
         }
@@ -323,7 +450,7 @@ app.get('/api/notams', async (req, res) => {
       return res.status(500).json({ error: "Unexpected response format from FAA API" });
     }
 
-    // Parse and process NOTAMs
+    // Parse FAA NOTAMs
     const items = notamRes.data.items || [];
     console.log(`[${new Date().toISOString()}] Processing ${items.length} raw NOTAMs for ${icao}`);
     
@@ -355,7 +482,7 @@ app.get('/api/notams', async (req, res) => {
           console.error(`[${new Date().toISOString()}] Error parsing NOTAM item ${index}:`, itemError);
           return null;
         }
-      }).filter(Boolean); // Remove null items
+      }).filter(Boolean);
       
     } catch (parseErr) {
       console.error(`[${new Date().toISOString()}] Failed to parse NOTAM data for ${icao}:`, parseErr);
@@ -367,14 +494,14 @@ app.get('/api/notams', async (req, res) => {
 
     console.log(`[${new Date().toISOString()}] Successfully parsed ${parsed.length} NOTAMs for ${icao}`);
 
-    // Filter for currently valid or future NOTAMs only
+    // Filter for valid NOTAMs
     const now = new Date();
     const validNotams = parsed.filter(notam => {
-      if (!notam.validTo) return true; // Keep if end time missing
+      if (!notam.validTo) return true;
       try {
         return new Date(notam.validTo) >= now;
       } catch {
-        return true; // Keep if date parsing fails
+        return true;
       }
     });
 
@@ -392,12 +519,11 @@ app.get('/api/notams', async (req, res) => {
             total: navNotams.length,
             processingTime,
             timestamp: new Date().toISOString(),
-            source: 'NAVCAN'
+            source: 'NAVCAN (FAA zero results)'
           }
         });
       }
       console.log(`[${new Date().toISOString()}] NAV CANADA fallback returned no results for ${icao}`);
-      // Continue to return FAA empty payload below (consistent behaviour)
     }
 
     // Sort by dispatcher priority
@@ -454,6 +580,28 @@ app.get('/api/notams', async (req, res) => {
   } catch (err) {
     const processingTime = Date.now() - startTime;
     console.error(`[${new Date().toISOString()}] Error fetching NOTAMs for ${icao} (${processingTime}ms):`, err.message);
+    
+    // Try NAV CANADA fallback for Canadian ICAOs on any error
+    if (icao.startsWith('C')) {
+      try {
+        console.log(`[${new Date().toISOString()}] Attempting NAV CANADA fallback after error for ${icao}`);
+        const navNotams = await fetchNavCanadaNotamsServerSide(icao);
+        if (navNotams && navNotams.length > 0) {
+          return res.json({
+            data: navNotams,
+            metadata: {
+              icao,
+              total: navNotams.length,
+              processingTime: Date.now() - startTime,
+              timestamp: new Date().toISOString(),
+              source: 'NAVCAN (Error fallback)'
+            }
+          });
+        }
+      } catch (navErr) {
+        console.error(`[${new Date().toISOString()}] NAV CANADA fallback failed for ${icao}:`, navErr);
+      }
+    }
     
     if (err.code === 'ECONNABORTED' || err.code === 'ENOTFOUND') {
       return res.status(503).json({ 
