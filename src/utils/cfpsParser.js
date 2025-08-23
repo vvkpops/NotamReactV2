@@ -1,153 +1,36 @@
-// Enhanced CFPS Parser - Clean and format NAV CANADA data properly
+// Enhanced CFPS Parser V2 - Handle complex NAV CANADA JSON structure
 
-/**
- * Parse and clean NAV CANADA CFPS NOTAM data with proper formatting
- * @param {string} icao - ICAO code
- * @param {Object} rawData - Raw JSON response from CFPS
- * @returns {Array} Normalized and cleaned NOTAM array
- */
-export function parseCFPSResponse(icao, rawData) {
-  if (!rawData || typeof rawData !== 'object') {
-    console.log(`[CFPS] Empty or invalid payload for ${icao}`);
-    return [];
-  }
+function parseNotamText(item) {
+  // Handle different data structures from NAVCAN
+  let rawText = '';
+  let englishText = '';
+  let frenchText = '';
 
-  const rawItems = extractCFPSItems(rawData, icao);
-  
-  if (!rawItems || rawItems.length === 0) {
-    console.log(`[CFPS] No NOTAM items found for ${icao}`);
-    return [];
-  }
-
-  const normalizedNotams = rawItems.map((item, index) => {
-    return normalizeCFPSNotam(item, icao, index);
-  }).filter(Boolean);
-
-  console.log(`[CFPS] Successfully parsed ${normalizedNotams.length} NOTAMs for ${icao}`);
-  return normalizedNotams;
-}
-
-/**
- * Extract NOTAM items from various CFPS response structures
- */
-function extractCFPSItems(rawData, icao) {
-  let items = [];
-
-  // Try different response structures
-  if (Array.isArray(rawData)) {
-    items = rawData;
-  } else if (Array.isArray(rawData.alpha)) {
-    items = rawData.alpha;
-  } else if (Array.isArray(rawData.notams)) {
-    items = rawData.notams;
-  } else if (Array.isArray(rawData.data)) {
-    items = rawData.data;
-  } else if (rawData.report) {
-    if (Array.isArray(rawData.report.notams)) {
-      items = rawData.report.notams;
-    } else if (Array.isArray(rawData.report.alpha)) {
-      items = rawData.report.alpha;
-    } else if (typeof rawData.report === 'object') {
-      items = [rawData.report];
+  // Check if item has nested JSON structure
+  if (item.raw && typeof item.raw === 'string') {
+    try {
+      const parsedRaw = JSON.parse(item.raw);
+      rawText = parsedRaw.raw || parsedRaw.english || item.raw;
+      englishText = parsedRaw.english || '';
+      frenchText = parsedRaw.french || '';
+    } catch (e) {
+      rawText = item.raw;
     }
-  } else if (rawData[icao]) {
-    const icaoData = rawData[icao];
-    if (Array.isArray(icaoData)) {
-      items = icaoData;
-    } else if (Array.isArray(icaoData.notams)) {
-      items = icaoData.notams;
+  } else if (item.text && typeof item.text === 'string') {
+    try {
+      const parsedText = JSON.parse(item.text);
+      rawText = parsedText.raw || parsedText.english || item.text;
+      englishText = parsedText.english || '';
+      frenchText = parsedText.french || '';
+    } catch (e) {
+      rawText = item.text;
     }
   } else {
-    // Look for any array of objects that might contain NOTAMs
-    const keys = Object.keys(rawData);
-    for (const key of keys) {
-      if (Array.isArray(rawData[key]) && rawData[key].length > 0) {
-        const firstItem = rawData[key][0];
-        if (typeof firstItem === 'object' && firstItem !== null) {
-          if (hasNotamCharacteristics(firstItem)) {
-            items = rawData[key];
-            console.log(`[CFPS] Found NOTAM data in key: ${key}`);
-            break;
-          }
-        }
-      }
-    }
+    // Try other fields
+    rawText = item.raw || item.text || item.message || item.fullText || item.summary || '';
   }
 
-  return items;
-}
-
-function hasNotamCharacteristics(obj) {
-  const notamFields = ['id', 'notamId', 'number', 'text', 'raw', 'message', 'summary', 'start', 'end', 'issued', 'site', 'icao'];
-  return notamFields.some(field => obj.hasOwnProperty(field));
-}
-
-/**
- * Enhanced NOTAM normalization with proper content parsing
- */
-function normalizeCFPSNotam(item, icao, index) {
-  try {
-    // Extract basic identifiers
-    const number = extractNotamNumber(item);
-    const id = `${icao}-${number || index}`;
-    
-    // Parse the raw NOTAM text properly
-    const parsedContent = parseNotamText(item);
-    
-    // Extract and format dates
-    const dates = extractAndFormatDates(item);
-    
-    // Determine proper classification and type
-    const classification = determineClassification(parsedContent);
-    const type = determineNotamType(item, parsedContent);
-
-    return {
-      id,
-      number: number || '',
-      type,
-      classification,
-      icao: icao.toUpperCase(),
-      location: item.site || item.icao || icao.toUpperCase(),
-      validFrom: dates.validFrom,
-      validTo: dates.validTo,
-      summary: parsedContent.summary,
-      body: parsedContent.body,
-      qLine: parsedContent.qLine,
-      issued: dates.issued,
-      source: 'NAVCAN',
-      rawOriginal: item,
-      processedAt: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error(`[CFPS] Error normalizing NOTAM item ${index}:`, error);
-    return null;
-  }
-}
-
-/**
- * Extract NOTAM number/identifier
- */
-function extractNotamNumber(item) {
-  return item.id || 
-         item.notamId || 
-         item.notamNumber || 
-         item.number || 
-         item.notam_id ||
-         '';
-}
-
-/**
- * Enhanced NOTAM text parsing - converts raw CFPS format to clean content
- */
-function parseNotamText(item) {
-  // Get the raw text from various possible fields
-  const rawText = item.raw || 
-                  item.text || 
-                  item.message || 
-                  item.fullText ||
-                  item.summary ||
-                  '';
-
+  // If we still don't have content, return default
   if (!rawText) {
     return {
       summary: 'NOTAM information not available',
@@ -156,152 +39,159 @@ function parseNotamText(item) {
     };
   }
 
-  // Split the NOTAM into sections
-  const sections = parseNotamSections(rawText);
+  // Use English version if available, otherwise use raw
+  const contentToProcess = englishText || rawText;
   
-  // Extract Q-Line
-  const qLine = sections.qLine || extractQLineFromText(rawText);
+  // Parse the NOTAM structure
+  const parsedNotam = parseNotamStructure(contentToProcess);
   
-  // Create clean summary from the main content
-  const summary = createCleanSummary(sections.mainContent, sections.location);
-  
-  // Create body with additional details
-  const body = createCleanBody(sections, rawText);
-
   return {
-    summary: summary || 'NOTAM content not available',
-    body: body || summary || 'NOTAM content not available',
-    qLine: qLine || ''
+    summary: parsedNotam.summary,
+    body: parsedNotam.body,
+    qLine: parsedNotam.qLine,
+    validFrom: parsedNotam.validFrom,
+    validTo: parsedNotam.validTo,
+    number: parsedNotam.number
   };
 }
 
-/**
- * Parse NOTAM into logical sections
- */
-function parseNotamSections(rawText) {
-  const lines = rawText.split(/[\r\n]+/).filter(line => line.trim());
+function parseNotamStructure(notamText) {
+  const lines = notamText.split(/[\r\n]+/).map(line => line.trim()).filter(line => line);
   
   let qLine = '';
+  let number = '';
+  let validFrom = '';
+  let validTo = '';
   let mainContent = '';
-  let location = '';
-  let validityInfo = '';
-  let additionalInfo = [];
+  let additionalLines = [];
 
-  for (const line of lines) {
-    const trimmedLine = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     
-    if (trimmedLine.startsWith('Q)')) {
-      qLine = trimmedLine;
-    } else if (trimmedLine.match(/^[A-Z]{4}\s+/)) {
-      // Likely location info
-      location = trimmedLine;
-    } else if (trimmedLine.match(/^\d{10,12}/)) {
-      // Likely validity dates
-      validityInfo = trimmedLine;
-    } else if (trimmedLine.length > 10 && !trimmedLine.match(/^[A-Z]\)/)) {
-      // Main content (not section headers)
-      if (!mainContent && trimmedLine.length > 20) {
-        mainContent = trimmedLine;
-      } else {
-        additionalInfo.push(trimmedLine);
+    // Extract NOTAM number (e.g., H4435/25, A1234/25)
+    if (!number) {
+      const numberMatch = line.match(/\(([A-Z]\d+\/\d+)\s+NOTAMN?/);
+      if (numberMatch) {
+        number = numberMatch[1];
+        continue;
       }
+    }
+    
+    // Extract Q-Line
+    if (line.startsWith('Q)')) {
+      qLine = line;
+      continue;
+    }
+    
+    // Extract validity dates from A) and B) C) lines
+    if (line.match(/^A\)\s*[A-Z]{4}/)) {
+      // A) line contains location
+      continue;
+    }
+    
+    if (line.match(/^B\)\s*(\d{10})/)) {
+      const dateMatch = line.match(/^B\)\s*(\d{10})/);
+      if (dateMatch) {
+        validFrom = dateMatch[1];
+      }
+      continue;
+    }
+    
+    if (line.match(/^C\)\s*(\d{10})/)) {
+      const dateMatch = line.match(/^C\)\s*(\d{10})/);
+      if (dateMatch) {
+        validTo = dateMatch[1];
+      }
+      continue;
+    }
+    
+    // Extract main content from E) line
+    if (line.startsWith('E)')) {
+      mainContent = line.substring(2).trim();
+      // Continue reading subsequent lines that are part of the E) section
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextLine = lines[j];
+        if (nextLine.match(/^[A-Z]\)/)) {
+          // New section started
+          break;
+        }
+        if (nextLine && !nextLine.includes('FR:') && !nextLine.includes('FRENCH:')) {
+          mainContent += ' ' + nextLine;
+        } else {
+          break;
+        }
+      }
+      continue;
+    }
+    
+    // Collect other content that's not structural
+    if (!line.match(/^[A-Z]\)/) && !line.includes('FR:') && !line.includes('FRENCH:') && line.length > 10) {
+      additionalLines.push(line);
     }
   }
 
+  // Clean up the main content
+  const cleanContent = cleanNotamContent(mainContent);
+  
+  // Create summary (first sentence or up to 200 chars)
+  const summary = createSummary(cleanContent);
+  
+  // Create body with additional context
+  let body = cleanContent;
+  if (additionalLines.length > 0) {
+    body += '\n\n' + additionalLines.join('\n');
+  }
+
   return {
+    summary,
+    body: body || cleanContent || 'NOTAM content not available',
     qLine,
-    mainContent,
-    location,
-    validityInfo,
-    additionalInfo
+    validFrom,
+    validTo,
+    number
   };
 }
 
-/**
- * Create a clean, readable summary from raw content
- */
-function createCleanSummary(mainContent, location) {
-  if (!mainContent) return '';
-
-  let summary = mainContent;
-
-  // Clean up common CFPS formatting issues
-  summary = summary
-    // Remove excessive periods and spaces
-    .replace(/\.{2,}/g, '. ')
-    .replace(/\s{2,}/g, ' ')
-    // Fix common abbreviations
+function cleanNotamContent(content) {
+  if (!content) return '';
+  
+  return content
+    // Remove excessive whitespace
+    .replace(/\s+/g, ' ')
+    // Expand common abbreviations
+    .replace(/\bDEP\b/g, 'DEPARTURE')
+    .replace(/\bEXP\b/g, 'EXPECT')
+    .replace(/\bDLA\b/g, 'DELAY')
+    .replace(/\bCTC\b/g, 'CONTACT')
+    .replace(/\bFIR\b/g, 'FLIGHT INFORMATION REGION')
+    .replace(/\bIFR\b/g, 'INSTRUMENT FLIGHT RULES')
+    .replace(/\bU\/S\b/g, 'UNSERVICEABLE')
+    .replace(/\bCLSD\b/g, 'CLOSED')
     .replace(/\bRWY\b/g, 'RUNWAY')
     .replace(/\bTWY\b/g, 'TAXIWAY')
-    .replace(/\bCLSD\b/g, 'CLOSED')
-    .replace(/\bU\/S\b/g, 'UNSERVICEABLE')
-    .replace(/\bO\/S\b/g, 'OUT OF SERVICE')
-    // Clean up technical codes
-    .replace(/\s+\([^)]*\)\s*/g, ' ')
-    .replace(/[{}[\]]/g, '')
+    // Clean up formatting
+    .replace(/\s*:\s*/g, ': ')
+    .replace(/\s*\.\s*/g, '. ')
     .trim();
-
-  // Limit summary length
-  if (summary.length > 200) {
-    summary = summary.substring(0, 197) + '...';
-  }
-
-  return summary;
 }
 
-/**
- * Create detailed body content
- */
-function createCleanBody(sections, originalText) {
-  let body = '';
-
-  if (sections.mainContent) {
-    body += sections.mainContent;
+function createSummary(content) {
+  if (!content) return 'NOTAM information not available';
+  
+  // Try to get first sentence
+  const firstSentence = content.split(/[.!?]/)[0];
+  if (firstSentence && firstSentence.length > 20 && firstSentence.length < 150) {
+    return firstSentence.trim();
   }
-
-  if (sections.additionalInfo.length > 0) {
-    body += (body ? '\n\n' : '') + sections.additionalInfo.join('\n');
+  
+  // Otherwise, take first 180 characters
+  if (content.length > 180) {
+    return content.substring(0, 177).trim() + '...';
   }
-
-  if (sections.validityInfo) {
-    body += (body ? '\n\n' : '') + 'Validity: ' + sections.validityInfo;
-  }
-
-  // Clean up the body text
-  body = body
-    .replace(/[\r\n]{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  return body || sections.mainContent || originalText.substring(0, 500);
+  
+  return content.trim();
 }
 
-/**
- * Extract Q-Line from text
- */
-function extractQLineFromText(text) {
-  const qLineMatch = text.match(/Q\)[^\r\n]+/);
-  return qLineMatch ? qLineMatch[0] : '';
-}
-
-/**
- * Enhanced date extraction and formatting
- */
-function extractAndFormatDates(item) {
-  const validFrom = item.start || item.validFrom || item.effectiveStart || item.issued || '';
-  const validTo = item.end || item.validTo || item.effectiveEnd || '';
-  const issued = item.issued || item.issuedDate || item.start || '';
-
-  return {
-    validFrom: normalizeDateString(validFrom),
-    validTo: normalizeDateString(validTo),
-    issued: normalizeDateString(issued)
-  };
-}
-
-/**
- * Enhanced date normalization with multiple format support
- */
 function normalizeDateString(dateStr) {
   if (!dateStr) return '';
   
@@ -314,7 +204,7 @@ function normalizeDateString(dateStr) {
       return isNaN(date) ? '' : date.toISOString();
     }
     
-    // Handle NOTAM date format: YYMMDDHHMM or YYYYMMDDHHMM
+    // Handle NOTAM date format: YYMMDDHHMM
     if (/^\d{10}$/.test(normalizedDate)) {
       const year = 2000 + parseInt(normalizedDate.substr(0, 2));
       const month = parseInt(normalizedDate.substr(2, 2)) - 1;
@@ -326,6 +216,7 @@ function normalizeDateString(dateStr) {
       return isNaN(date) ? '' : date.toISOString();
     }
     
+    // Handle YYYYMMDDHHMM format
     if (/^\d{12}$/.test(normalizedDate)) {
       const year = parseInt(normalizedDate.substr(0, 4));
       const month = parseInt(normalizedDate.substr(4, 2)) - 1;
@@ -347,28 +238,26 @@ function normalizeDateString(dateStr) {
   }
 }
 
-/**
- * Determine proper NOTAM classification from content
- */
-function determineClassification(parsedContent) {
-  const content = (parsedContent.summary + ' ' + parsedContent.body + ' ' + parsedContent.qLine).toUpperCase();
-  
-  // Check Q-Line first for accurate classification
-  if (parsedContent.qLine) {
-    const qLineParts = parsedContent.qLine.split('/');
+function determineClassification(parsedContent, qLine) {
+  // Check Q-Line first for most accurate classification
+  if (qLine) {
+    const qLineParts = qLine.split('/');
     if (qLineParts.length >= 2) {
       const code = qLineParts[1];
       if (code.length >= 2) {
         const classCode = code.substr(0, 2);
-        // Map common Q-codes to classifications
         const qCodeMap = {
-          'QM': 'RW', // Runway
-          'QT': 'TW', // Taxiway  
-          'QI': 'AD', // ILS/Navigation
-          'QF': 'SVC', // Fuel/Services
-          'QA': 'AA', // Aerodrome
-          'QR': 'AD', // Radio/Navigation
-          'QC': 'AC'  // Communication
+          'QA': 'AA',  // Aerodrome
+          'QF': 'SVC', // Fuel/Services 
+          'QM': 'RW',  // Runway
+          'QT': 'TW',  // Taxiway
+          'QI': 'AD',  // ILS/Navigation
+          'QR': 'AD',  // Radio/Navigation
+          'QC': 'AC',  // Communication
+          'QS': 'SVC', // Services
+          'QL': 'AD',  // Lighting
+          'QN': 'AD',  // Navigation
+          'QO': 'AO'   // Other
         };
         if (qCodeMap[classCode]) {
           return qCodeMap[classCode];
@@ -377,39 +266,94 @@ function determineClassification(parsedContent) {
     }
   }
   
-  // Fallback to content-based classification
+  // Content-based classification as fallback
+  const content = (parsedContent.summary + ' ' + parsedContent.body).toUpperCase();
+  
   if (/\b(RUNWAY|RWY)\b.*\b(CLSD|CLOSED|CLOSURE)\b/i.test(content)) return 'RW';
   if (/\b(TAXIWAY|TWY)\b.*\b(CLSD|CLOSED|CLOSURE)\b/i.test(content)) return 'TW';
   if (/\b(RSC|RUNWAY\s+SURFACE\s+CONDITION)\b/i.test(content)) return 'RW';
   if (/\b(CRFI|CANADIAN\s+RUNWAY\s+FRICTION)\b/i.test(content)) return 'RW';
   if (/\b(ILS|INSTRUMENT\s+LANDING|LOCALIZER|GLIDESLOPE)\b/i.test(content)) return 'AD';
-  if (/\b(FUEL|REFUEL|AVGAS|JET\s*A)/i.test(content)) return 'SVC';
+  if (/\b(FUEL|REFUEL|AVGAS|JET\s*A)\b/i.test(content)) return 'SVC';
   if (/\b(DOMESTIC\s+(ONLY|FLIGHTS?|OPERATIONS?))\b/i.test(content)) return 'DOM';
   if (/\b(APRON|RAMP|GATE|TERMINAL)\b/i.test(content)) return 'AA';
   if (/\b(NAV|NAVIGATION|VOR|DME|NDB)\b/i.test(content)) return 'AD';
   if (/\b(COM|COMMUNICATION|RADIO|FREQ|FREQUENCY)\b/i.test(content)) return 'AC';
+  if (/\b(CAPACITY|DELAY|DEPARTURE|ARRIVAL)\b/i.test(content)) return 'AO';
   
   return 'AO'; // Other
 }
 
-/**
- * Determine NOTAM type
- */
-function determineNotamType(item, parsedContent) {
-  // Check explicit type field
-  if (item.type && /^[A-Z]$/.test(item.type)) {
-    return item.type;
+function normalizeCFPSNotam(item, icao, index) {
+  try {
+    // Enhanced content parsing
+    const parsedContent = parseNotamText(item);
+    
+    // Extract dates - try from parsed content first, then item fields
+    const validFrom = normalizeDateString(
+      parsedContent.validFrom || 
+      item.start || 
+      item.validFrom || 
+      item.effectiveStart || 
+      item.issued || 
+      ''
+    );
+    
+    const validTo = normalizeDateString(
+      parsedContent.validTo || 
+      item.end || 
+      item.validTo || 
+      item.effectiveEnd || 
+      ''
+    );
+    
+    const issued = normalizeDateString(
+      item.issued || 
+      item.issuedDate || 
+      parsedContent.validFrom ||
+      item.start || 
+      ''
+    );
+    
+    // Get NOTAM number from parsed content or item
+    const number = parsedContent.number || item.id || item.notamId || item.number || '';
+    
+    // Generate ID
+    const id = `${icao}-${number || index}`;
+    
+    // Determine classification
+    const classification = determineClassification(parsedContent, parsedContent.qLine);
+    
+    // Determine type
+    const type = (item.type && /^[A-Z]$/.test(item.type)) ? item.type : 'A';
+
+    return {
+      id,
+      number: number || '',
+      type,
+      classification,
+      icao: icao.toUpperCase(),
+      location: item.site || item.icao || icao.toUpperCase(),
+      validFrom,
+      validTo,
+      summary: parsedContent.summary,
+      body: parsedContent.body,
+      qLine: parsedContent.qLine,
+      issued,
+      source: 'NAVCAN',
+      rawOriginal: item,
+      processedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error(`[CFPS] Error normalizing NOTAM item ${index}:`, error);
+    return null;
   }
-  
-  // Check content for cancellation indicators
-  const content = (parsedContent.summary + ' ' + parsedContent.body).toUpperCase();
-  if (/\b(CANCEL|CNL|CANCELLED)\b/i.test(content)) {
-    return 'C';
-  }
-  
-  // Default to 'A' for Active NOTAMs
-  return 'A';
 }
 
-// Export the main parsing function
-export { parseCFPSResponse };
+// Export the functions for use in server
+module.exports = {
+  parseNotamText,
+  normalizeCFPSNotam,
+  normalizeDateString,
+  determineClassification
+};
