@@ -40,17 +40,54 @@ export const getNotamFlags = (notam) => {
     isILS: /\bILS\b/.test(s) && !/\bCLOSED|CLSD\b/.test(s),
     isFuel: /\bFUEL\b/.test(s),
     isCancelled: notam.type === "C" || /\b(CANCELLED|CNL)\b/.test(s),
-    // FIXED: DOM filter - check multiple sources for domestic classification
-    isDom: (
-      (typeof notam.classification === 'string' && notam.classification.toLowerCase().includes('domestic')) ||
-      (typeof notam.type === 'string' && notam.type.toLowerCase().includes('dom')) ||
-      (typeof notam.summary === 'string' && /\b(DOM|DOMESTIC)\b/i.test(notam.summary)) ||
-      (typeof notam.qLine === 'string' && /\bDOM\b/i.test(notam.qLine)) ||
-      // NAV CANADA specific - they sometimes mark domestic NOTAMs differently
-      (notam.source === 'NAVCAN' && typeof notam.classification === 'string' && 
-       (/domestic/i.test(notam.classification) || /^D/i.test(notam.classification)))
-    )
+    // FIXED: More precise DOM detection - only check specific classification codes
+    isDom: isDomesticNotam(notam)
   };
+};
+
+// SEPARATE FUNCTION: More precise domestic NOTAM detection
+export const isDomesticNotam = (notam) => {
+  // 1. Check exact classification match for DOM
+  if (notam.classification === 'DOM' || notam.classification === 'DOMESTIC') {
+    return true;
+  }
+  
+  // 2. Check if type is specifically DOM (less common but possible)
+  if (notam.type === 'DOM') {
+    return true;
+  }
+  
+  // 3. For NAV CANADA, check for Canadian domestic patterns
+  if (notam.source === 'NAVCAN') {
+    // Canadian NOTAMs might use different domestic indicators
+    if (notam.classification && /^(D|DOM|DOMESTIC)$/i.test(notam.classification.trim())) {
+      return true;
+    }
+    // Check if the NOTAM specifically mentions domestic operations
+    if (notam.summary && /\bDOMESTIC\s+(OPERATIONS?|FLIGHTS?|ONLY)\b/i.test(notam.summary)) {
+      return true;
+    }
+  }
+  
+  // 4. Check Q-Line for domestic indicators (ICAO standard)
+  if (notam.qLine) {
+    // Q-Line format often contains scope information
+    // Look for domestic scope indicators
+    if (/\/IV\//.test(notam.qLine)) { // International/Domestic indicator
+      return false; // IV typically means international
+    }
+    if (/\/NBO\//.test(notam.qLine)) { // National/Domestic operations
+      return true;
+    }
+  }
+  
+  // 5. Last resort: Check content for explicit domestic restrictions
+  const content = ((notam.summary || '') + ' ' + (notam.body || '')).toUpperCase();
+  if (/\b(DOMESTIC\s+(ONLY|FLIGHTS?|OPERATIONS?)|FOR\s+DOMESTIC\s+USE)\b/.test(content)) {
+    return true;
+  }
+  
+  return false;
 };
 
 export const getNotamType = (notam) => {
@@ -85,11 +122,9 @@ export const extractRunways = (text) => {
   return [...new Set(rwyMatches)].join(', ');
 };
 
-// VANILLA JS APPROACH - Smart content-based expansion
 export const needsExpansion = (summary, body, cardScale = 1.0) => {
   if (!summary) return false;
   
-  // Consider scale and total content like vanilla JS
   const baseLength = 250;
   const adjustedThreshold = Math.round(baseLength * cardScale);
   const totalLength = (summary ? summary.length : 0) + (body ? body.length : 0);
@@ -97,9 +132,7 @@ export const needsExpansion = (summary, body, cardScale = 1.0) => {
   return totalLength > adjustedThreshold || (summary && summary.length > adjustedThreshold * 0.8);
 };
 
-// FIXED: New NOTAM detection - only for truly new NOTAMs based on issue time, not fetch time
 export const isNewNotam = (notam) => {
-  // Check if NOTAM was actually issued recently (within last 60 minutes)
   const issuedDate = parseDate(notam.issued || notam.validFrom);
   if (!issuedDate) return false;
   
@@ -107,16 +140,13 @@ export const isNewNotam = (notam) => {
   return issuedDate > sixtyMinutesAgo;
 };
 
-// FIXED: NOTAM comparison logic - smarter duplicate detection to prevent auto-refresh false positives
 export const compareNotamSets = (icao, previousNotams, newNotams) => {
-  // Create more robust keys that combine multiple identifiers
   const createNotamKey = (notam) => {
-    // Use multiple fields to create a unique key - helps avoid false positives
     const parts = [
       notam.id,
       notam.number, 
       notam.qLine,
-      notam.summary?.substring(0, 100), // First 100 chars of summary
+      notam.summary?.substring(0, 100),
       notam.issued,
       notam.validFrom
     ].filter(Boolean);
@@ -127,48 +157,47 @@ export const compareNotamSets = (icao, previousNotams, newNotams) => {
   const prevKeys = new Set((previousNotams || []).map(createNotamKey));
   const newKeys = new Set((newNotams || []).map(createNotamKey));
   
-  // Detect NEW NOTAMs - only those that are truly new, not just refetched
   const addedNotams = (newNotams || []).filter(notam => {
     const key = createNotamKey(notam);
     return !prevKeys.has(key);
   });
   
-  // Detect REMOVED NOTAMs
   const removedNotams = (previousNotams || []).filter(notam => {
     const key = createNotamKey(notam);
     return !newKeys.has(key);
   });
   
-  // ADDITIONAL CHECK: For auto-refresh scenarios, also verify that "new" NOTAMs 
-  // are actually recently issued, not just refetched old ones
   const genuinelyNewNotams = addedNotams.filter(notam => {
-    // If it's an auto-refresh (not first load), be more strict
     if (previousNotams && previousNotams.length > 0) {
-      // Check if this NOTAM was actually issued recently
       const issuedDate = parseDate(notam.issued || notam.validFrom);
       if (issuedDate) {
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-        return issuedDate > twoHoursAgo; // Only consider NOTAMs issued in last 2 hours as "new"
+        return issuedDate > twoHoursAgo;
       }
     }
-    return true; // For first load, consider all as potentially new
+    return true;
   });
   
   return {
-    added: genuinelyNewNotams, // Use the filtered list
+    added: genuinelyNewNotams,
     removed: removedNotams,
     total: newNotams ? newNotams.length : 0
   };
 };
 
-// Filtering utilities
+// FIXED: Cleaner filter application with debug logging
 export const applyNotamFilters = (notams, filters, keywordFilter) => {
   return notams.filter(notam => {
     const flags = getNotamFlags(notam);
     const notamType = getNotamType(notam);
     const text = (notam.summary + ' ' + notam.body).toLowerCase();
     
-    // Apply keyword filter
+    // Debug logging for DOM filter (remove in production)
+    if (flags.isDom) {
+      console.log(`DOM NOTAM detected: ${notam.number || 'Unknown'} - Classification: ${notam.classification}, DOM filter: ${filters.dom}`);
+    }
+    
+    // Apply keyword filter first
     if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) {
       return false;
     }
@@ -183,8 +212,11 @@ export const applyNotamFilters = (notams, filters, keywordFilter) => {
     if (notamType === 'other' && !filters.other) return false;
     if (notamType === 'cancelled' && !filters.cancelled) return false;
     
-    // FIXED: DOM filter logic
-    if (flags.isDom && !filters.dom) return false;
+    // Apply DOM filter - FIXED: Only filter out DOM NOTAMs if DOM filter is OFF
+    if (flags.isDom && !filters.dom) {
+      console.log(`Filtering out DOM NOTAM: ${notam.number || 'Unknown'}`);
+      return false;
+    }
     
     // Apply time filters
     const isCurrent = isNotamCurrent(notam);
@@ -197,7 +229,7 @@ export const applyNotamFilters = (notams, filters, keywordFilter) => {
   });
 };
 
-// Sorting utilities
+// Rest of the utility functions remain the same...
 export const sortNotams = (notams, sortBy = 'priority') => {
   const sortFunctions = {
     priority: (a, b) => {
@@ -211,7 +243,6 @@ export const sortNotams = (notams, sortBy = 'priority') => {
         return aIndex - bIndex;
       }
       
-      // Secondary sort by effective date (newest first)
       const aDate = parseDate(a.validFrom) || new Date(0);
       const bDate = parseDate(b.validFrom) || new Date(0);
       return bDate - aDate;
@@ -243,7 +274,6 @@ export const sortNotams = (notams, sortBy = 'priority') => {
   return [...notams].sort(sortFunctions[sortBy] || sortFunctions.priority);
 };
 
-// NOTAM validation utilities
 export const validateNotam = (notam) => {
   const errors = [];
   
@@ -269,7 +299,6 @@ export const validateNotam = (notam) => {
   };
 };
 
-// NOTAM formatting utilities
 export const formatNotamDate = (dateString, format = 'short') => {
   const date = parseDate(dateString);
   if (!date) return 'Invalid Date';
@@ -290,7 +319,7 @@ export const formatNotamDate = (dateString, format = 'short') => {
       minute: '2-digit',
       timeZoneName: 'short'
     },
-    relative: null // Will use relative time
+    relative: null
   };
   
   if (format === 'relative') {
@@ -312,7 +341,6 @@ export const formatNotamDate = (dateString, format = 'short') => {
   return date.toLocaleString('en-US', formats[format] || formats.short);
 };
 
-// NOTAM search utilities
 export const searchNotams = (notams, searchTerm) => {
   if (!searchTerm.trim()) return notams;
   
@@ -327,7 +355,6 @@ export const searchNotams = (notams, searchTerm) => {
   });
 };
 
-// Export utilities for external use
 export const exportNotamsToCSV = (notams) => {
   const headers = ['ICAO', 'Number', 'Type', 'Classification', 'Valid From', 'Valid To', 'Summary'];
   const csvContent = [
@@ -339,7 +366,7 @@ export const exportNotamsToCSV = (notams) => {
       notam.classification || '',
       notam.validFrom || '',
       notam.validTo || '',
-      `"${(notam.summary || '').replace(/"/g, '""')}"` // Escape quotes
+      `"${(notam.summary || '').replace(/"/g, '""')}"`
     ].join(','))
   ].join('\n');
   
