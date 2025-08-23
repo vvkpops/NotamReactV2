@@ -40,7 +40,16 @@ export const getNotamFlags = (notam) => {
     isILS: /\bILS\b/.test(s) && !/\bCLOSED|CLSD\b/.test(s),
     isFuel: /\bFUEL\b/.test(s),
     isCancelled: notam.type === "C" || /\b(CANCELLED|CNL)\b/.test(s),
-    isDom: typeof notam.classification === 'string' && notam.classification.toLowerCase().includes('domestic')
+    // FIXED: DOM filter - check multiple sources for domestic classification
+    isDom: (
+      (typeof notam.classification === 'string' && notam.classification.toLowerCase().includes('domestic')) ||
+      (typeof notam.type === 'string' && notam.type.toLowerCase().includes('dom')) ||
+      (typeof notam.summary === 'string' && /\b(DOM|DOMESTIC)\b/i.test(notam.summary)) ||
+      (typeof notam.qLine === 'string' && /\bDOM\b/i.test(notam.qLine)) ||
+      // NAV CANADA specific - they sometimes mark domestic NOTAMs differently
+      (notam.source === 'NAVCAN' && typeof notam.classification === 'string' && 
+       (/domestic/i.test(notam.classification) || /^D/i.test(notam.classification)))
+    )
   };
 };
 
@@ -88,35 +97,65 @@ export const needsExpansion = (summary, body, cardScale = 1.0) => {
   return totalLength > adjustedThreshold || (summary && summary.length > adjustedThreshold * 0.8);
 };
 
-// VANILLA JS APPROACH - Simple recent NOTAM detection (no complex timers)
+// FIXED: New NOTAM detection - only for truly new NOTAMs based on issue time, not fetch time
 export const isNewNotam = (notam) => {
-  // Simple: if NOTAM was issued in last 10 minutes, consider it "new"
+  // Check if NOTAM was actually issued recently (within last 60 minutes)
   const issuedDate = parseDate(notam.issued || notam.validFrom);
   if (!issuedDate) return false;
   
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-  return issuedDate > tenMinutesAgo;
+  const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
+  return issuedDate > sixtyMinutesAgo;
 };
 
-// VANILLA JS APPROACH - Simple NOTAM comparison logic
+// FIXED: NOTAM comparison logic - smarter duplicate detection to prevent auto-refresh false positives
 export const compareNotamSets = (icao, previousNotams, newNotams) => {
-  const prevKeys = new Set((previousNotams || []).map(n => n.id || n.number || n.qLine || n.summary));
-  const newKeys = new Set((newNotams || []).map(n => n.id || n.number || n.qLine || n.summary));
+  // Create more robust keys that combine multiple identifiers
+  const createNotamKey = (notam) => {
+    // Use multiple fields to create a unique key - helps avoid false positives
+    const parts = [
+      notam.id,
+      notam.number, 
+      notam.qLine,
+      notam.summary?.substring(0, 100), // First 100 chars of summary
+      notam.issued,
+      notam.validFrom
+    ].filter(Boolean);
+    
+    return parts.join('|');
+  };
   
-  // Detect NEW NOTAMs
-  const addedNotams = (newNotams || []).filter(n => {
-    const key = n.id || n.number || n.qLine || n.summary;
+  const prevKeys = new Set((previousNotams || []).map(createNotamKey));
+  const newKeys = new Set((newNotams || []).map(createNotamKey));
+  
+  // Detect NEW NOTAMs - only those that are truly new, not just refetched
+  const addedNotams = (newNotams || []).filter(notam => {
+    const key = createNotamKey(notam);
     return !prevKeys.has(key);
   });
   
   // Detect REMOVED NOTAMs
-  const removedNotams = (previousNotams || []).filter(n => {
-    const key = n.id || n.number || n.qLine || n.summary;
+  const removedNotams = (previousNotams || []).filter(notam => {
+    const key = createNotamKey(notam);
     return !newKeys.has(key);
   });
   
+  // ADDITIONAL CHECK: For auto-refresh scenarios, also verify that "new" NOTAMs 
+  // are actually recently issued, not just refetched old ones
+  const genuinelyNewNotams = addedNotams.filter(notam => {
+    // If it's an auto-refresh (not first load), be more strict
+    if (previousNotams && previousNotams.length > 0) {
+      // Check if this NOTAM was actually issued recently
+      const issuedDate = parseDate(notam.issued || notam.validFrom);
+      if (issuedDate) {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        return issuedDate > twoHoursAgo; // Only consider NOTAMs issued in last 2 hours as "new"
+      }
+    }
+    return true; // For first load, consider all as potentially new
+  });
+  
   return {
-    added: addedNotams,
+    added: genuinelyNewNotams, // Use the filtered list
     removed: removedNotams,
     total: newNotams ? newNotams.length : 0
   };
@@ -143,6 +182,8 @@ export const applyNotamFilters = (notams, filters, keywordFilter) => {
     if (notamType === 'fuel' && !filters.fuel) return false;
     if (notamType === 'other' && !filters.other) return false;
     if (notamType === 'cancelled' && !filters.cancelled) return false;
+    
+    // FIXED: DOM filter logic
     if (flags.isDom && !filters.dom) return false;
     
     // Apply time filters
