@@ -77,6 +77,9 @@ function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [keywordFilter, setKeywordFilter] = useState('');
 
+  // FIXED: Add ref to track if this is an auto-refresh to prevent false "new NOTAM" alerts
+  const isAutoRefreshRef = useRef(false);
+
   // Session management and batching
   const { activeSession } = useSessionManagement();
   const { 
@@ -108,7 +111,7 @@ function App() {
     setNotificationCount(prev => prev + 1);
   }, []);
 
-  // ENHANCED NOTAM FETCH with new NOTAM tracking
+  // ENHANCED NOTAM FETCH with better new NOTAM tracking
   async function handleFetchNotams(icao, showAlertIfNew = true) {
     if (!activeSession) return { error: true };
     
@@ -127,14 +130,19 @@ function App() {
       const previousNotams = notamDataByIcao[icao] || [];
       const comparison = compareNotamSets(icao, previousNotams, notams);
       
-      // Track new NOTAMs with timestamps
+      // FIXED: Only track and alert for new NOTAMs if this is NOT an auto-refresh
+      // or if the NOTAMs are genuinely new (recently issued)
+      const shouldShowNewNotamAlerts = showAlertIfNew && !isAutoRefreshRef.current;
+      
+      // Track new NOTAMs with timestamps, but be smarter about it
       if (comparison.added.length > 0) {
         const newNotamIds = comparison.added.map(notam => {
           const id = notam.id || notam.number || notam.qLine || notam.summary;
           return { 
             id, 
             timestamp: Date.now(),
-            notam: notam
+            notam: notam,
+            issuedTime: notam.issued || notam.validFrom // Track when NOTAM was actually issued
           };
         });
         
@@ -143,20 +151,22 @@ function App() {
           [icao]: [...(prev[icao] || []), ...newNotamIds]
         }));
         
-        // Add to highlighted NOTAMs
-        const notamKeys = newNotamIds.map(item => `${icao}-${item.id}`);
-        setHighlightedNotams(prev => new Set([...prev, ...notamKeys]));
-        
-        // Remove highlights after 60 seconds
-        notamKeys.forEach(key => {
-          setTimeout(() => {
-            setHighlightedNotams(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(key);
-              return newSet;
-            });
-          }, 60000); // 60 seconds
-        });
+        // Add to highlighted NOTAMs only if they're genuinely new
+        if (shouldShowNewNotamAlerts) {
+          const notamKeys = newNotamIds.map(item => `${icao}-${item.id}`);
+          setHighlightedNotams(prev => new Set([...prev, ...notamKeys]));
+          
+          // Remove highlights after 60 seconds
+          notamKeys.forEach(key => {
+            setTimeout(() => {
+              setHighlightedNotams(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(key);
+                return newSet;
+              });
+            }, 60000); // 60 seconds
+          });
+        }
       }
       
       // Clean up old new NOTAMs (older than 10 minutes)
@@ -173,8 +183,8 @@ function App() {
       setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'success' }));
       setLoadedIcaosSet(prev => new Set([...prev, icao]));
       
-      // Show notifications
-      if (showAlertIfNew && comparison.added.length > 0) {
+      // FIXED: Only show notifications for genuinely new NOTAMs, not auto-refresh refetches
+      if (shouldShowNewNotamAlerts && comparison.added.length > 0) {
         showNewNotamAlert(
           `${icao}: ${comparison.added.length} new NOTAM${comparison.added.length > 1 ? 's' : ''} detected!`,
           icao,
@@ -182,7 +192,7 @@ function App() {
         );
       }
       
-      if (showAlertIfNew && comparison.removed.length > 0) {
+      if (shouldShowNewNotamAlerts && comparison.removed.length > 0) {
         showNewNotamAlert(
           `${icao}: ${comparison.removed.length} NOTAM${comparison.removed.length > 1 ? 's' : ''} cancelled/expired`,
           icao,
@@ -226,7 +236,7 @@ function App() {
     }
   }, []);
 
-  // Auto-refresh implementation
+  // FIXED: Better auto-refresh implementation that doesn't trigger false "new" alerts
   useEffect(() => {
     if (!activeSession || icaoSet.length === 0) return;
     
@@ -235,18 +245,33 @@ function App() {
     let countdown = 300; // 5 minutes in seconds
     
     const performAutoRefresh = () => {
-  // Only add ICAOs that are loaded, not currently loading, and not already queued
-  const refreshIcaos = icaoSet.filter(icao =>
-    loadedIcaosSet.has(icao) &&
-    !loadingIcaosSet.has(icao) &&
-    !icaoQueue.includes(icao)
-  );
-  // Add to batching queue
-  if (refreshIcaos.length > 0) {
-    setIcaoQueue(prev => [...prev, ...refreshIcaos]);
-    startBatching();
-  }
-};
+      console.log('🔄 Performing auto-refresh...');
+      
+      // Set the auto-refresh flag to prevent false "new NOTAM" alerts
+      isAutoRefreshRef.current = true;
+      
+      // Only add ICAOs that are loaded, not currently loading, and not already queued
+      const refreshIcaos = icaoSet.filter(icao =>
+        loadedIcaosSet.has(icao) &&
+        !loadingIcaosSet.has(icao) &&
+        !icaoQueue.includes(icao)
+      );
+      
+      // Add to batching queue
+      if (refreshIcaos.length > 0) {
+        setIcaoQueue(prev => [...prev, ...refreshIcaos]);
+        startBatching();
+        
+        // Reset the auto-refresh flag after a delay to allow processing
+        setTimeout(() => {
+          isAutoRefreshRef.current = false;
+          console.log('✅ Auto-refresh flag reset');
+        }, 10000); // 10 seconds should be enough for most batches
+      } else {
+        // No ICAOs to refresh, reset flag immediately
+        isAutoRefreshRef.current = false;
+      }
+    };
     
     const updateCountdown = () => {
       setAutoRefreshCountdown(countdown);
@@ -266,7 +291,7 @@ function App() {
       clearInterval(autoRefreshTimer);
       clearInterval(countdownTimer);
     };
-  }, [activeSession, icaoSet, loadedIcaosSet, notamDataByIcao]);
+  }, [activeSession, icaoSet, loadedIcaosSet, loadingIcaosSet, icaoQueue, startBatching]);
 
   // Cleanup effect for old highlights and notifications
   useEffect(() => {
@@ -312,6 +337,8 @@ function App() {
     setIcaoQueue([]);
     setBatchingActive(false);
     setTabMode("ALL");
+    // Reset auto-refresh flag
+    isAutoRefreshRef.current = false;
   };
 
   const handleSaveSetResponse = (shouldSave) => {
@@ -368,6 +395,8 @@ function App() {
     setIcaoSet(updatedIcaos);
     saveIcaos(updatedIcaos);
     if (icaosToLoad.length > 0) {
+      // Mark as manual load (not auto-refresh) to allow new NOTAM alerts
+      isAutoRefreshRef.current = false;
       setIcaoQueue(prev => [...prev, ...icaosToLoad]);
       startBatching();
     }
@@ -402,10 +431,18 @@ function App() {
 
   const handleReloadAll = () => {
     if (!icaoSet.length) return;
+    
+    console.log('🔄 Manual reload all triggered');
+    
+    // Clear cache and reset auto-refresh flag for manual reload
     setCachedNotamData({});
+    isAutoRefreshRef.current = false;
+    
+    // Clear current data but keep ICAO set
+    const currentIcaos = [...icaoSet];
     clearCurrentSet();
-    setIcaoSet([...icaoSet]);
-    setIcaoQueue([...icaoSet]);
+    setIcaoSet(currentIcaos);
+    setIcaoQueue(currentIcaos);
     startBatching();
   };
 
