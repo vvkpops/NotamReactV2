@@ -1,8 +1,144 @@
-// ===== MODIFIED FILES FOR HYBRID SOLUTION =====
+// src/utils/notamUtils.js - Complete file with all exports
 
-// 1. UPDATE src/utils/notamUtils.js - Simplify compareNotamSets and isNewNotam
-// ===============================================================================
+import { 
+  ICAO_CLASSIFICATION_MAP, 
+  NOTAM_TYPES
+} from '../constants';
 
+// Classification and type utilities
+export const getClassificationTitle = (classification) => {
+  if (!classification) return "Other";
+  const code = classification.trim().toUpperCase();
+  return ICAO_CLASSIFICATION_MAP[code] || "Other";
+};
+
+export const parseDate = (s) => {
+  if (!s) return null;
+  let iso = s.trim().replace(' ', 'T');
+  if (!/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
+  let d = new Date(iso);
+  return isNaN(d) ? null : d;
+};
+
+export const isNotamCurrent = (notam) => {
+  const validFrom = parseDate(notam.validFrom);
+  const now = new Date();
+  return !validFrom || validFrom <= now;
+};
+
+export const isNotamFuture = (notam) => {
+  const validFrom = parseDate(notam.validFrom);
+  const now = new Date();
+  return validFrom && validFrom > now;
+};
+
+export const getNotamFlags = (notam) => {
+  const s = (notam.summary + ' ' + notam.body).toUpperCase();
+  return {
+    isRunwayClosure: /\b(RWY|RUNWAY)[^\n]*\b(CLSD|CLOSED)\b/.test(s),
+    isTaxiwayClosure: /\b(TWY|TAXIWAY)[^\n]*\b(CLSD|CLOSED)\b/.test(s),
+    isRSC: /\bRSC\b/.test(s),
+    isCRFI: /\bCRFI\b/.test(s),
+    isILS: /\bILS\b/.test(s) && !/\bCLOSED|CLSD\b/.test(s),
+    isFuel: /\bFUEL\b/.test(s),
+    isCancelled: notam.type === "C" || /\b(CANCELLED|CNL)\b/.test(s),
+    isDom: isDomesticNotam(notam)
+  };
+};
+
+// SEPARATE FUNCTION: More precise domestic NOTAM detection
+export const isDomesticNotam = (notam) => {
+  // 1. Check exact classification match for DOM
+  if (notam.classification === 'DOM' || notam.classification === 'DOMESTIC') {
+    return true;
+  }
+  
+  // 2. Check if type is specifically DOM (less common but possible)
+  if (notam.type === 'DOM') {
+    return true;
+  }
+  
+  // 3. For NAV CANADA, check for Canadian domestic patterns
+  if (notam.source === 'NAVCAN') {
+    // Canadian NOTAMs might use different domestic indicators
+    if (notam.classification && /^(D|DOM|DOMESTIC)$/i.test(notam.classification.trim())) {
+      return true;
+    }
+    // Check if the NOTAM specifically mentions domestic operations
+    if (notam.summary && /\bDOMESTIC\s+(OPERATIONS?|FLIGHTS?|ONLY)\b/i.test(notam.summary)) {
+      return true;
+    }
+  }
+  
+  // 4. Check Q-Line for domestic indicators (ICAO standard)
+  if (notam.qLine) {
+    // Q-Line format often contains scope information
+    // Look for domestic scope indicators
+    if (/\/IV\//.test(notam.qLine)) { // International/Domestic indicator
+      return false; // IV typically means international
+    }
+    if (/\/NBO\//.test(notam.qLine)) { // National/Domestic operations
+      return true;
+    }
+  }
+  
+  // 5. Last resort: Check content for explicit domestic restrictions
+  const content = ((notam.summary || '') + ' ' + (notam.body || '')).toUpperCase();
+  if (/\b(DOMESTIC\s+(ONLY|FLIGHTS?|OPERATIONS?)|FOR\s+DOMESTIC\s+USE)\b/.test(content)) {
+    return true;
+  }
+  
+  return false;
+};
+
+// MISSING EXPORT: getNotamType function
+export const getNotamType = (notam) => {
+  const flags = getNotamFlags(notam);
+  if (flags.isRunwayClosure) return 'rwy';
+  if (flags.isTaxiwayClosure) return 'twy';
+  if (flags.isRSC) return 'rsc';
+  if (flags.isCRFI) return 'crfi';
+  if (flags.isILS) return 'ils';
+  if (flags.isFuel) return 'fuel';
+  if (flags.isCancelled) return 'cancelled';
+  return 'other';
+};
+
+// MISSING EXPORT: getHeadClass function
+export const getHeadClass = (notam) => {
+  const type = getNotamType(notam);
+  return `head-${type}`;
+};
+
+// MISSING EXPORT: getHeadTitle function
+export const getHeadTitle = (notam) => {
+  const type = getNotamType(notam);
+  return NOTAM_TYPES[type] || 'GENERAL NOTAM';
+};
+
+// MISSING EXPORT: extractRunways function
+export const extractRunways = (text) => {
+  const rwyMatches = [];
+  const regex = /\bRWY\s*(\d{2,3}(?:[LRC])?(?:\/\d{2,3}(?:[LRC])?)*)/gi;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    rwyMatches.push(match[1]);
+  }
+  return [...new Set(rwyMatches)].join(', ');
+};
+
+// MISSING EXPORT: needsExpansion function
+export const needsExpansion = (summary, body, cardScale = 1.0) => {
+  if (!summary) return false;
+  
+  const baseLength = 250;
+  const adjustedThreshold = Math.round(baseLength * cardScale);
+  const totalLength = (summary ? summary.length : 0) + (body ? body.length : 0);
+  
+  return totalLength > adjustedThreshold || (summary && summary.length > adjustedThreshold * 0.8);
+};
+
+// HYBRID SOLUTION: Simplified isNewNotam function (vanilla JS approach)
 export const isNewNotam = (notam) => {
   // VANILLA JS APPROACH: Simple 60-minute window for "new" highlighting
   const issuedDate = parseDate(notam.issued || notam.validFrom);
@@ -12,6 +148,7 @@ export const isNewNotam = (notam) => {
   return issuedDate > sixtyMinutesAgo;
 };
 
+// HYBRID SOLUTION: Simplified compareNotamSets function
 export const compareNotamSets = (icao, previousNotams, newNotams) => {
   // VANILLA JS APPROACH: Simple key-based comparison without over-filtering
   const createNotamKey = (notam) => {
@@ -40,181 +177,199 @@ export const compareNotamSets = (icao, previousNotams, newNotams) => {
   };
 };
 
-// 2. UPDATE src/App.js - Simplify handleFetchNotams logic
-// ===============================================================================
-
-// ENHANCED NOTAM FETCH with simplified new NOTAM tracking
-async function handleFetchNotams(icao, showAlertIfNew = true) {
-  if (!activeSession) return { error: true };
-  
-  try {
-    const result = await fetchNotamsForIcao(icao);
-    const data = result?.data || result;
+// Filter and sorting utilities
+export const applyNotamFilters = (notams, filters, keywordFilter) => {
+  return notams.filter(notam => {
+    const flags = getNotamFlags(notam);
+    const notamType = getNotamType(notam);
+    const text = (notam.summary + ' ' + notam.body).toLowerCase();
     
-    if (data?.error) {
-      setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'error' }));
-      return { error: data.error };
+    // Apply keyword filter first
+    if (keywordFilter && !text.includes(keywordFilter.toLowerCase())) {
+      return false;
     }
     
-    const notams = Array.isArray(data) ? data : [];
+    // Apply type filters
+    if (notamType === 'rwy' && !filters.rwy) return false;
+    if (notamType === 'twy' && !filters.twy) return false;
+    if (notamType === 'rsc' && !filters.rsc) return false;
+    if (notamType === 'crfi' && !filters.crfi) return false;
+    if (notamType === 'ils' && !filters.ils) return false;
+    if (notamType === 'fuel' && !filters.fuel) return false;
+    if (notamType === 'other' && !filters.other) return false;
+    if (notamType === 'cancelled' && !filters.cancelled) return false;
     
-    // Enhanced comparison logic for new NOTAM tracking
-    const previousNotams = notamDataByIcao[icao] || [];
-    const comparison = compareNotamSets(icao, previousNotams, notams);
+    // Apply DOM filter - Only filter out DOM NOTAMs if DOM filter is OFF
+    if (flags.isDom && !filters.dom) {
+      return false;
+    }
     
-    // SIMPLIFIED: Always track new NOTAMs, but be smart about notifications
-    if (comparison.added.length > 0) {
-      const newNotamIds = comparison.added.map(notam => {
-        const id = notam.id || notam.number || notam.qLine || notam.summary;
-        return { 
-          id, 
-          timestamp: Date.now(),
-          notam: notam,
-          issuedTime: notam.issued || notam.validFrom
-        };
-      });
+    // Apply time filters
+    const isCurrent = isNotamCurrent(notam);
+    const isFuture = isNotamFuture(notam);
+    
+    if (isCurrent && !filters.current) return false;
+    if (isFuture && !filters.future) return false;
+    
+    return true;
+  });
+};
+
+export const sortNotams = (notams, sortBy = 'priority') => {
+  const sortFunctions = {
+    priority: (a, b) => {
+      const types = ["rwy", "twy", "rsc", "crfi", "ils", "fuel", "other", "cancelled"];
+      const aType = getNotamType(a);
+      const bType = getNotamType(b);
+      const aIndex = types.indexOf(aType);
+      const bIndex = types.indexOf(bType);
       
-      setNewNotamsByIcao(prev => ({
-        ...prev,
-        [icao]: [...(prev[icao] || []), ...newNotamIds]
-      }));
-      
-      // HYBRID: Only show notifications if this isn't a silent auto-refresh
-      // AND we have genuinely new NOTAMs (issued within reasonable time)
-      const shouldShowNotification = showAlertIfNew && comparison.added.some(notam => {
-        const issuedDate = parseDate(notam.issued || notam.validFrom);
-        if (!issuedDate) return true; // Show notification for NOTAMs without dates
-        
-        // Show notifications for NOTAMs issued within last 4 hours
-        // (more generous than vanilla's 60 minutes for notifications)
-        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-        return issuedDate > fourHoursAgo;
-      });
-      
-      if (shouldShowNotification) {
-        const notamKeys = newNotamIds.map(item => `${icao}-${item.id}`);
-        setHighlightedNotams(prev => new Set([...prev, ...notamKeys]));
-        
-        // Remove highlights after 60 seconds
-        notamKeys.forEach(key => {
-          setTimeout(() => {
-            setHighlightedNotams(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(key);
-              return newSet;
-            });
-          }, 60000);
-        });
-        
-        showNewNotamAlert(
-          `${icao}: ${comparison.added.length} new NOTAM${comparison.added.length > 1 ? 's' : ''} detected!`,
-          icao,
-          comparison.added[0].id || comparison.added[0].number || comparison.added[0].qLine || comparison.added[0].summary
-        );
+      if (aIndex !== bIndex) {
+        return aIndex - bIndex;
       }
+      
+      const aDate = parseDate(a.validFrom) || new Date(0);
+      const bDate = parseDate(b.validFrom) || new Date(0);
+      return bDate - aDate;
+    },
+    
+    date: (a, b) => {
+      const aDate = parseDate(a.validFrom) || new Date(0);
+      const bDate = parseDate(b.validFrom) || new Date(0);
+      return bDate - aDate;
+    },
+    
+    icao: (a, b) => {
+      if (a.icao !== b.icao) {
+        return a.icao.localeCompare(b.icao);
+      }
+      return sortFunctions.priority(a, b);
+    },
+    
+    type: (a, b) => {
+      const aType = getNotamType(a);
+      const bType = getNotamType(b);
+      if (aType !== bType) {
+        return aType.localeCompare(bType);
+      }
+      return sortFunctions.date(a, b);
     }
-    
-    if (showAlertIfNew && comparison.removed.length > 0) {
-      showNewNotamAlert(
-        `${icao}: ${comparison.removed.length} NOTAM${comparison.removed.length > 1 ? 's' : ''} cancelled/expired`,
-        icao,
-        comparison.removed[0].id || comparison.removed[0].number || comparison.removed[0].qLine || comparison.removed[0].summary
-      );
-    }
-    
-    // Clean up old new NOTAMs (older than 10 minutes)
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    setNewNotamsByIcao(prev => ({
-      ...prev,
-      [icao]: (prev[icao] || []).filter(item => item.timestamp > tenMinutesAgo)
-    }));
-    
-    // Update state (unchanged)
-    const currSet = new Set(notams.map(n => n.id || n.number || n.qLine || n.summary));
-    setLastNotamIdsByIcao(prev => ({ ...prev, [icao]: currSet }));
-    setNotamDataByIcao(prev => ({ ...prev, [icao]: notams }));
-    setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'success' }));
-    setLoadedIcaosSet(prev => new Set([...prev, icao]));
-    
-    return notams;
-  } catch (error) {
-    setNotamFetchStatusByIcao(prev => ({ ...prev, [icao]: 'error' }));
-    return { error: error.message };
+  };
+  
+  return [...notams].sort(sortFunctions[sortBy] || sortFunctions.priority);
+};
+
+// Validation utilities
+export const validateNotam = (notam) => {
+  const errors = [];
+  
+  if (!notam.icao || !/^[A-Z]{4}$/.test(notam.icao)) {
+    errors.push('Invalid ICAO code');
   }
-}
-
-// 3. UPDATE the auto-refresh logic - Remove the problematic isAutoRefreshRef
-// ===============================================================================
-
-// SIMPLIFIED: Better auto-refresh implementation without complex flags
-useEffect(() => {
-  if (!activeSession || icaoSet.length === 0) return;
   
-  let autoRefreshTimer;
-  let countdownTimer;
-  let countdown = 300; // 5 minutes in seconds
+  if (!notam.summary && !notam.body) {
+    errors.push('Missing NOTAM content');
+  }
   
-  const performAutoRefresh = () => {
-    console.log('🔄 Performing auto-refresh...');
+  if (notam.validFrom && !parseDate(notam.validFrom)) {
+    errors.push('Invalid validFrom date');
+  }
+  
+  if (notam.validTo && !parseDate(notam.validTo)) {
+    errors.push('Invalid validTo date');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+// Date formatting utilities
+export const formatNotamDate = (dateString, format = 'short') => {
+  const date = parseDate(dateString);
+  if (!date) return 'Invalid Date';
+  
+  const formats = {
+    short: { 
+      year: '2-digit', 
+      month: '2-digit', 
+      day: '2-digit', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    },
+    long: { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZoneName: 'short'
+    },
+    relative: null
+  };
+  
+  if (format === 'relative') {
+    const now = new Date();
+    const diffMs = date - now;
+    const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
     
-    // NO MORE isAutoRefreshRef - let the natural logic handle it
-    
-    // Only add ICAOs that are loaded, not currently loading, and not already queued
-    const refreshIcaos = icaoSet.filter(icao =>
-      loadedIcaosSet.has(icao) &&
-      !loadingIcaosSet.has(icao) &&
-      !icaoQueue.includes(icao)
-    );
-    
-    // Add to batching queue with showAlertIfNew = false for silent auto-refresh
-    if (refreshIcaos.length > 0) {
-      setIcaoQueue(prev => [...prev, ...refreshIcaos]);
-      startBatching();
+    if (diffHours < 1) {
+      const diffMinutes = Math.abs(diffMs) / (1000 * 60);
+      return `${Math.round(diffMinutes)} minutes ${diffMs > 0 ? 'from now' : 'ago'}`;
+    } else if (diffHours < 24) {
+      return `${Math.round(diffHours)} hours ${diffMs > 0 ? 'from now' : 'ago'}`;
+    } else {
+      const diffDays = diffHours / 24;
+      return `${Math.round(diffDays)} days ${diffMs > 0 ? 'from now' : 'ago'}`;
     }
+  }
+  
+  return date.toLocaleString('en-US', formats[format] || formats.short);
+};
+
+// Search and export utilities
+export const searchNotams = (notams, searchTerm) => {
+  if (!searchTerm.trim()) return notams;
+  
+  const term = searchTerm.toLowerCase().trim();
+  const searchFields = ['summary', 'body', 'qLine', 'number', 'icao', 'location'];
+  
+  return notams.filter(notam => {
+    return searchFields.some(field => {
+      const value = notam[field];
+      return value && value.toString().toLowerCase().includes(term);
+    });
+  });
+};
+
+export const exportNotamsToCSV = (notams) => {
+  const headers = ['ICAO', 'Number', 'Type', 'Classification', 'Valid From', 'Valid To', 'Summary'];
+  const csvContent = [
+    headers.join(','),
+    ...notams.map(notam => [
+      notam.icao || '',
+      notam.number || '',
+      notam.type || '',
+      notam.classification || '',
+      notam.validFrom || '',
+      notam.validTo || '',
+      `"${(notam.summary || '').replace(/"/g, '""')}"`
+    ].join(','))
+  ].join('\n');
+  
+  return csvContent;
+};
+
+export const exportNotamsToJSON = (notams) => {
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    count: notams.length,
+    notams: notams.map(notam => ({
+      ...notam,
+      exportedAt: new Date().toISOString()
+    }))
   };
   
-  const updateCountdown = () => {
-    setAutoRefreshCountdown(countdown);
-    countdown--;
-    
-    if (countdown < 0) {
-      countdown = 300; // Reset to 5 minutes
-      performAutoRefresh();
-    }
-  };
-  
-  // Start timers (unchanged)
-  autoRefreshTimer = setInterval(performAutoRefresh, 5 * 60 * 1000); // 5 minutes
-  countdownTimer = setInterval(updateCountdown, 1000); // 1 second
-  
-  return () => {
-    clearInterval(autoRefreshTimer);
-    clearInterval(countdownTimer);
-  };
-}, [activeSession, icaoSet, loadedIcaosSet, loadingIcaosSet, icaoQueue, startBatching]);
-
-// 4. UPDATE the batching system to pass the correct showAlertIfNew parameter
-// ===============================================================================
-
-// In useBatchingSystem hook, ensure that auto-refresh calls pass showAlertIfNew = false
-// This way manual refreshes will show notifications, but auto-refreshes won't
-
-// The key is in the onFetchNotams call within the batching system:
-// For auto-refresh: onFetchNotams(icao, false) // No alerts
-// For manual refresh: onFetchNotams(icao, true) // Show alerts
-
-// ===== SUMMARY OF CHANGES =====
-// 
-// 1. ✅ Removed complex isAutoRefreshRef flag system
-// 2. ✅ Simplified compareNotamSets to not over-filter NOTAMs
-// 3. ✅ Used vanilla JS isNewNotam logic (60-minute window)
-// 4. ✅ Kept all existing batching and state management
-// 5. ✅ Added smarter notification logic (4-hour window for alerts)
-// 6. ✅ Maintained all React V2 features and architecture
-//
-// This hybrid approach:
-// - Uses the simple, reliable detection from vanilla JS
-// - Keeps React V2's batching and state management
-// - Distinguishes between manual and auto-refresh via showAlertIfNew parameter
-// - Shows visual "new" highlighting for 60-minute window (like vanilla)
-// - Shows notifications for 4-hour window (more generous for user experience)
+  return JSON.stringify(exportData, null, 2);
+};
